@@ -17,7 +17,12 @@ target_sources(
         PUBLIC
             ${LIBCIXL_SOURCES}
 )
+
 target_compile_definitions(libcixl-for-testing PUBLIC WITH_INTERNALS_VISIBLE)
+target_compile_definitions(libcixl-for-testing PUBLIC LIBCIXL_EXPORTS)
+
+target_compile_definitions(libcixl PRIVATE LIBCIXL_EXPORTS)
+
 
 target_include_directories(libcixl
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}

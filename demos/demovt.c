@@ -44,29 +44,29 @@ void set_video_mode()
     puts("\033[=3h;\033[=3l;");
 }
 
-void draw_cixl(const int start_x, const int start_y, const Cixl cixl)
+void draw_cixl(const int start_x, const int start_y, const CIXL_Cxl cixl)
 {
     move_cursor(start_x, start_y);
     putchar(cixl.char_value);
 }
 
 void
-draw_cixl_s(const int start_x, const int start_y, char *str, const int size, const Color fg_color, const Color bg_color,
-            const FontDecoration decoration)
+draw_cixl_s(const int start_x, const int start_y, char *str, const int size, const CIXL_Color fg_color, const CIXL_Color bg_color,
+            const CIXL_StyleOpts decoration)
 {
     move_cursor(start_x, start_y);
     puts(str);
 }
 
-static RenderDevice VT_RENDER_DEVICE = {draw_cixl, draw_cixl_s};
-static const char   HEADER_S[44]     = "[Ruzzie Termlib ANSI VT Demo & Test program]";
+static CIXL_RenderDevice VT_RENDER_DEVICE = {draw_cixl, draw_cixl_s};
+static const char        HEADER_S[44]     = "[Ruzzie Termlib ANSI VT Demo & Test program]";
 static const char   INFO_LINE_S[27]  = "            press x to exit";
 
 
 #define DEMO_VT_MAX_INPUT_BUFFER_SIZE 80
 static char INPUT_BUFFER[DEMO_VT_MAX_INPUT_BUFFER_SIZE];//arbitrary size, what if someone copy and pastes stuff....?
-static int  INPUT_BUFFER_SIZE        = 0;
-Cixl        PLAYER                   = {'@', 0, 0, 0};
+static int INPUT_BUFFER_SIZE = 0;
+CIXL_Cxl   PLAYER            = {'@', 0, 0, 0};
 
 int main(void)
 {
