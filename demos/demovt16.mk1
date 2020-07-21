@@ -1,0 +1,22 @@
+!define BLANK ""
+C:\tmp\TermLib\demovt.obj : C:\tmp\TermLib\demos\demovt.c .AUTODEPEND
+ @C:
+ cd C:\tmp\TermLib
+ *wcc demos\demovt.c -i="C:\WATCOM/h" -w4 -e25 -zq -otexan -d1 -bt=dos -fo=.&
+obj -ml
+
+C:\tmp\TermLib\RuzzieTermLib.obj : C:\tmp\TermLib\src\RuzzieTermLib.c .AUTOD&
+EPEND
+ @C:
+ cd C:\tmp\TermLib
+ *wcc src\RuzzieTermLib.c -i="C:\WATCOM/h" -w4 -e25 -zq -otexan -d1 -bt=dos &
+-fo=.obj -ml
+
+C:\tmp\TermLib\demovt16.exe : C:\tmp\TermLib\demovt.obj C:\tmp\TermLib\Ruzzi&
+eTermLib.obj C:\tmp\TermLib\src\RuzzieTermLib.h .AUTODEPEND
+ @C:
+ cd C:\tmp\TermLib
+ @%write demovt16.lk1 FIL demovt.obj,RuzzieTermLib.obj
+ @%append demovt16.lk1 
+ *wlink name demovt16 sys dos op m op maxe=25 op q op symf @demovt16.lk1
+

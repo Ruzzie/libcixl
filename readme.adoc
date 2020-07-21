@@ -1,0 +1,48 @@
+= Cixl - The Tiny Text Console Game Library
+
+First things
+
+- structure libcixl
+- create build pipeline
+- colored / decorated cixl strings
+- game loop
+- pure c ansivt demo
+- netcore demo
+
+== Constraints
+- must also compile with openwatcom
+- at least cross platform (ish) c interface
+- must be able to interop with netcore
+- when complex internal / dependencies are needed, prefer rust over cpp, has easier dev env. experience
+- no restrictive licensing
+
+== Goals
+- Fun constraints for game development!
+- Can create a game under 1.44MB
+- Runs on windows32/64 and Dos (16)
+    * Separate rendering: can be Terminal / Text / Conio / Console / SDL / Bearlib / SadConsole etc.
+    * Pure text only
+- Keyboard input
+- SoundFx + Music
+    * FM synthesis (emulation / real hw) to reduce size
+    * Tracker player
+- Text based
+- Ascii High / Extended graphics (CP 437)
+- 256 colors (ish)
+- Framework can be used as library (multi-platform)
+- Can be used in other game frameworks
+- core libs don't use os dependent features (nostdlib)
+- reusable for mud, ascii / text games
+
+=== Needed stuff
+- Tiny Statemachine for state transitions
+- Easy Screen / Scene management / states
+- Root / Subconsoles
+- Layers in graphics
+- simple (e)cs system updates
+- pathfinding
+- animations
+
+
+
+
