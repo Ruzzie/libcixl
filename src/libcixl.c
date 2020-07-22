@@ -12,12 +12,19 @@
 const CIXL_Cxl CXL_EMPTY = {0, 0, 0, 0};
 #endif
 
-int cixl_pack(CIXL_Cxl *cxl)
+struct CXL_TermSize
+{
+    int width;
+    int height;
+    int area;
+};
+
+int32_t cixl_pack_cxl(CIXL_Cxl *cxl)
 {
     return *(int *) (cxl);
 }
 
-CIXL_Cxl *cixl_unpack(int *cxl_ptr)
+CIXL_Cxl *cixl_unpack_cxl(int32_t *cxl_ptr)
 {
     return (CIXL_Cxl *) cxl_ptr;
 }
@@ -46,32 +53,32 @@ int cxl_index_for_xy(const int x, const int y)
     return (TERM_WIDTH * y) + x;
 }
 
-typedef CIXL_byte_t CIXL_BufferState;
+typedef CIXL_byte_t CIXL_CxlState;
 
 static const CIXL_byte_t STATE_IS_DIRTY_FLAG  = 0x0002;
 static const CIXL_byte_t STATE_A_IS_NEXT      = 0x0000;
 static const CIXL_byte_t STATE_FIRST_BIT_MASK = 0x0001;
 
-static inline bool state_is_dirty(const CIXL_BufferState state)
+static inline bool state_is_dirty(const CIXL_CxlState state)
 {
     return (bool) (state & STATE_IS_DIRTY_FLAG) == STATE_IS_DIRTY_FLAG;
 }
 
-static inline bool state_a_is_next(const CIXL_BufferState state)
+static inline bool state_a_is_next(const CIXL_CxlState state)
 {
     return (bool) (state & STATE_FIRST_BIT_MASK) == STATE_A_IS_NEXT;
 }
 
-typedef CIXL_Cxl         FRAMEBUFFER[TERM_AREA];
-typedef CIXL_BufferState STATE_BUFFER[TERM_AREA];
+typedef CIXL_Cxl      FRAMEBUFFER[TERM_AREA];
+typedef CIXL_CxlState STATE_BUFFER[TERM_AREA];
 typedef struct DoubleFramebuffer
 {
     FRAMEBUFFER  buffer_a;
     FRAMEBUFFER  buffer_b;
     STATE_BUFFER state_buffer;
-}                        DoubleFramebuffer;
+}                     DoubleFramebuffer;
 
-/*Beware here be a deliberate global!*/
+/*The main buffer*/
 static DoubleFramebuffer SCREEN_BUFFER;
 
 void buffer_swap_and_clear_is_dirty(const int index)
@@ -80,7 +87,7 @@ void buffer_swap_and_clear_is_dirty(const int index)
 
     if (index < TERM_AREA)
     {
-        CIXL_BufferState *state = &SCREEN_BUFFER.state_buffer[index];
+        CIXL_CxlState *state = &SCREEN_BUFFER.state_buffer[index];
         *state ^= one; /* Swap current <-> next, flip first bit*/
         *state &= one; /* Clear is dirty flag, set second bit on 0 and keep first bit*/
     }
@@ -90,8 +97,8 @@ CIXL_Cxl buffer_pick_current(const int index)
 {
     if (index < TERM_AREA)
     {
-        CIXL_BufferState cixel_state = SCREEN_BUFFER.state_buffer[index];
-        return (state_a_is_next(cixel_state) ? SCREEN_BUFFER.buffer_b : SCREEN_BUFFER.buffer_a)[index];
+        CIXL_CxlState state = SCREEN_BUFFER.state_buffer[index];
+        return (state_a_is_next(state) ? SCREEN_BUFFER.buffer_b : SCREEN_BUFFER.buffer_a)[index];
     }
     else
     {
@@ -99,14 +106,20 @@ CIXL_Cxl buffer_pick_current(const int index)
     }
 }
 
-bool buffer_put_current(const int index, const CIXL_Cxl cixl)
+bool buffer_put_current(const int index, const CIXL_Cxl cxl)
 {
     if (index < TERM_AREA)
     {
-        CIXL_BufferState cixel_state = SCREEN_BUFFER.state_buffer[index];
-        (state_a_is_next(cixel_state) ? SCREEN_BUFFER.buffer_b : SCREEN_BUFFER.buffer_a)[index] = cixl;
+        CIXL_CxlState current_state = SCREEN_BUFFER.state_buffer[index];
+        if (state_a_is_next(current_state))
+        {
+            SCREEN_BUFFER.buffer_b[index] = cxl;
+        }
+        else
+        {
+            SCREEN_BUFFER.buffer_a[index] = cxl;
+        }
         return true;
-
     }
     else
     {
@@ -114,23 +127,20 @@ bool buffer_put_current(const int index, const CIXL_Cxl cixl)
     }
 }
 
-bool buffer_put_next(const int index, const CIXL_Cxl cixl)
+bool buffer_put_next(const int index, const CIXL_Cxl cxl)
 {
-    if (index < TERM_AREA)
+    if (index >= TERM_AREA)
     {
-        CIXL_BufferState cixel_state = SCREEN_BUFFER.state_buffer[index];
-        (state_a_is_next(cixel_state) ? SCREEN_BUFFER.buffer_a : SCREEN_BUFFER.buffer_b)[index] = cixl;
-
-        {
-            /*Set State to IsDirty*/
-            CIXL_BufferState *state = &(SCREEN_BUFFER.state_buffer[index]);
-            *state |= STATE_IS_DIRTY_FLAG;
-        }
-        return true;
+        return false;
     }
     else
     {
-        return false;
+        CIXL_CxlState *state = &(SCREEN_BUFFER.state_buffer[index]);
+        (state_a_is_next(*state) ? SCREEN_BUFFER.buffer_a : SCREEN_BUFFER.buffer_b)[index] = cxl;
+
+        /*Set State to IsDirty*/
+        *state |= STATE_IS_DIRTY_FLAG;
+        return true;
     }
 }
 
@@ -141,14 +151,14 @@ CIXL_Cxl buffer_pick_next(const int index, int *out_is_dirty)
 {
     if (index < TERM_AREA)
     {
-        CIXL_BufferState cixel_state = SCREEN_BUFFER.state_buffer[index];
+        CIXL_CxlState current_state = SCREEN_BUFFER.state_buffer[index];
 
         if (out_is_dirty != NULL)
         {
-            *out_is_dirty = state_is_dirty(cixel_state) ? 1 : 0;
+            *out_is_dirty = state_is_dirty(current_state) ? 1 : 0;
         }
 
-        return (state_a_is_next(cixel_state) ? SCREEN_BUFFER.buffer_a : SCREEN_BUFFER.buffer_b)[index];
+        return (state_a_is_next(current_state) ? SCREEN_BUFFER.buffer_a : SCREEN_BUFFER.buffer_b)[index];
     }
     else
     {
@@ -160,8 +170,8 @@ bool buffer_get_cixl_state(const int index, CIXL_Cxl *out_current, CIXL_Cxl *out
 {
     if (index < TERM_AREA)
     {
-        CIXL_BufferState cixel_state = SCREEN_BUFFER.state_buffer[index];
-        if (state_a_is_next(cixel_state))
+        CIXL_CxlState current_state = SCREEN_BUFFER.state_buffer[index];
+        if (state_a_is_next(current_state))
         {
             *out_current = SCREEN_BUFFER.buffer_b[index];
             *out_next    = SCREEN_BUFFER.buffer_a[index];
@@ -172,7 +182,7 @@ bool buffer_get_cixl_state(const int index, CIXL_Cxl *out_current, CIXL_Cxl *out
             *out_next    = SCREEN_BUFFER.buffer_b[index];
         }
 
-        *out_is_dirty = state_is_dirty(cixel_state) ? 1 : 0;
+        *out_is_dirty = state_is_dirty(current_state) ? 1 : 0;
         return true;
     }
     else
@@ -212,16 +222,16 @@ bool cixl_put(const int x, const int y, const CIXL_Cxl cxl)
     { /* need braces for compatibility */
         int index = cxl_index_for_xy(x, y);
 
-        CIXL_Cxl current_cixl;
-        CIXL_Cxl next_cixl;
+        CIXL_Cxl current_cxl;
+        CIXL_Cxl next_cxl;
         int      is_dirty;
 
-        if ((buffer_get_cixl_state(index, &current_cixl, &next_cixl, &is_dirty)) == false)
+        if ((buffer_get_cixl_state(index, &current_cxl, &next_cxl, &is_dirty)) == false)
         {
             return false;
         }
 
-        if (cxl_equals(&next_cixl, &cxl))
+        if (cxl_equals(&next_cxl, &cxl))
         {
             /*the next Cxl to be rendered is the same as the given cixel, so do nothing*/
             return false;
@@ -233,14 +243,14 @@ bool cixl_put(const int x, const int y, const CIXL_Cxl cxl)
             return buffer_put_next(index, cxl);
         }
 
-        if (cxl_equals(&cxl, &current_cixl))
+        if (cxl_equals(&cxl, &current_cxl))
         {
             buffer_swap_and_clear_is_dirty(index);
             return false;
         }
 
         /*todo; this check could be removed, first have an extensive test harness*/
-        if (!cxl_equals(&cxl, &current_cixl))
+        if (!cxl_equals(&cxl, &current_cxl))
         {
             bool put_result = buffer_put_next(index, cxl);
             if (is_dirty == false)
@@ -258,9 +268,9 @@ bool cixl_put(const int x, const int y, const CIXL_Cxl cxl)
     }
 }
 
-bool cixl_puti(const int x, const int y, int *cxl)
+bool cixl_puti(const int x, const int y, int32_t *cxl)
 {
-    return cixl_put(x, y, *cixl_unpack(cxl));
+    return cixl_put(x, y, *cixl_unpack_cxl(cxl));
 }
 
 void cixl_puts(const int start_x, const int y, const char *str, const int size, const CIXL_Color fg_color,
@@ -271,10 +281,10 @@ void cixl_puts(const int start_x, const int y, const char *str, const int size, 
 
     for (i = 0; x < (start_x + size); x++, i++)
     {
-        CIXL_Cxl cixl_to_add;
-        cixl_to_add.char_value = str[i];
+        CIXL_Cxl cxl_to_add;
+        cxl_to_add.char_value = str[i];
 
-        cixl_put(x, y, cixl_to_add);
+        cixl_put(x, y, cxl_to_add);
     }
 }
 
@@ -333,15 +343,15 @@ int cixl_render()
         return -2;
     }
     {
-        int draw_calls_count = 0;
-        int i                = 0;
-        int y                = -1;
+        int draw_call_count = 0;
+        int i               = 0;
+        int y               = -1;
         int x;
 
         int prev_written_idx = -2;
         int line_buffer_size = 0;
-        int start_x          = 0;
-        int start_y          = 0;
+        int draw_x           = 0;
+        int draw_y           = 0;
 
         CIXL_Cxl last_cxl = CXL_EMPTY;
 
@@ -352,15 +362,16 @@ int cixl_render()
             {
                 ++y;
             }
-            {
-                CIXL_BufferState cxl_state = SCREEN_BUFFER.state_buffer[i];
+            {//:{}(for OpenWatcom compatibility)
+                CIXL_CxlState current_state = SCREEN_BUFFER.state_buffer[i];
 
-                if (prev_written_idx != i - 1 && i > 0)
+                if (prev_written_idx != i - 1 && i > 0) //not at start:check if continuation on same line has stopped
                 {
+                    //check the line buffer and Draw a single cxl, or a str
                     if (line_buffer_size == 1)
                     {
-                        RENDER_DEVICE.f_draw_cxl(start_x, start_y, last_cxl);
-                        ++draw_calls_count;
+                        RENDER_DEVICE.f_draw_cxl(draw_x, draw_y, last_cxl);
+                        ++draw_call_count;
                         line_buffer_size = 0;
                     }
                     else
@@ -374,30 +385,30 @@ int cixl_render()
                             }
 
                             c_str_terminate(LINE_BUFFER, line_buffer_size);
-                            RENDER_DEVICE.f_draw_cxl_s(start_x, start_y, &LINE_BUFFER[0], line_buffer_size,
+                            RENDER_DEVICE.f_draw_cxl_s(draw_x, draw_y, &LINE_BUFFER[0], line_buffer_size,
                                                        last_cxl.fg_color, last_cxl.bg_color, last_cxl.decoration);
-                            ++draw_calls_count;
+                            ++draw_call_count;
                             line_buffer_size = 0;
                         }
                     }
                 }
 
-                /*When the state IsDirty an update draw call is forced*/
-                if (state_is_dirty(cxl_state))
+                /*When the state IsDirty an put cxl in line-buffer to prepare for draw*/
+                if (state_is_dirty(current_state))
                 {
-                    if (line_buffer_size == 0)
+                    if (line_buffer_size == 0) // line buffer is empty, remember x and y, where it al began
                     {
-                        start_x = x;
-                        start_y = y;
+                        draw_x = x;
+                        draw_y = y;
                     }
-                    {
+                    {//:{}(for OpenWatcom compatibility)
                         CIXL_Cxl next_cxl_to_draw = buffer_pick_next(i, NULL);
 
                         LINE_BUFFER[line_buffer_size++] = next_cxl_to_draw.char_value;
 
-                        last_cxl = next_cxl_to_draw;
+                        last_cxl = next_cxl_to_draw;//remember this
 
-                        buffer_swap_and_clear_is_dirty(i);
+                        buffer_swap_and_clear_is_dirty(i);//done with this cxl
 
                         prev_written_idx = i;
                     }
@@ -410,8 +421,8 @@ int cixl_render()
         //flush buffer at the end
         if (line_buffer_size == 1)
         {
-            RENDER_DEVICE.f_draw_cxl(start_x, start_y, last_cxl);
-            ++draw_calls_count;
+            RENDER_DEVICE.f_draw_cxl(draw_x, draw_y, last_cxl);
+            ++draw_call_count;
         }
         else if (line_buffer_size > 1)
         {
@@ -422,11 +433,11 @@ int cixl_render()
             }
 
             c_str_terminate(LINE_BUFFER, line_buffer_size);
-            RENDER_DEVICE.f_draw_cxl_s(start_x, start_y, &LINE_BUFFER[0], line_buffer_size, last_cxl.fg_color,
+            RENDER_DEVICE.f_draw_cxl_s(draw_x, draw_y, &LINE_BUFFER[0], line_buffer_size, last_cxl.fg_color,
                                        last_cxl.bg_color, last_cxl.decoration);
-            ++draw_calls_count;
+            ++draw_call_count;
         }
 
-        return draw_calls_count;
+        return draw_call_count;
     }
 }

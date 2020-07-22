@@ -13,7 +13,6 @@ target_link_libraries(libcixl-tests PUBLIC libcixl-for-testing)
 
 target_compile_definitions(libcixl-tests PUBLIC WITH_INTERNALS_VISIBLE)
 
-
 add_test(myTest libcixl-tests)
 
 if(MSVC)

@@ -14,7 +14,6 @@
 
 int move_cursor(int x, int y)
 {
-
     /*  Moves the cursor to row n, column m. The values are 1-based, and default to 1 (top left corner) if omitted.
      * A sequence such as CSI ;5H is a synonym for CSI 1;5H as well as CSI 17;H is the same as CSI 17H and CSI 17;1H*/
     return printf("\033[%i;%iH", y + 1, x + 1);
@@ -89,7 +88,7 @@ int main(void)
     sprintf(clock_info_s, "cps: %lu currclock:%lu", CLOCKS_PER_SEC, program_begin);
     cixl_puts(0, 2, clock_info_s, (int) strlen(clock_info_s), 0, 0, 0);
 
-    cixl_render();// first render
+    cixl_render();   // first render
     fflush(stdout);  // flush output after first render
 
     while (true)

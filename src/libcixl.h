@@ -14,14 +14,15 @@
 #define LIBCIXL_H
 
 #include "config.h"
+#include <stdint.h>
 
 #define TERM_WIDTH 80
 #define TERM_HEIGHT 25
 #define TERM_AREA (TERM_WIDTH * TERM_HEIGHT)
 
-typedef unsigned char CIXL_byte_t;
-typedef CIXL_byte_t   CIXL_Color;
-typedef CIXL_byte_t   CIXL_StyleOpts;
+typedef uint8_t     CIXL_byte_t;
+typedef CIXL_byte_t CIXL_Color;
+typedef CIXL_byte_t CIXL_StyleOpts;
 
 typedef struct CIXL_Cxl
 {
@@ -29,7 +30,8 @@ typedef struct CIXL_Cxl
     CIXL_Color     fg_color;
     CIXL_Color     bg_color;
     CIXL_StyleOpts decoration;
-}                     CIXL_Cxl;
+}                   CIXL_Cxl;
+
 
 #ifdef __cplusplus
 const CIXL_Cxl CXL_EMPTY{0, 0, 0, 0};
@@ -81,16 +83,16 @@ CIXLLIB_API void cixl_init(CIXL_RenderDevice *device);
 
 CIXLLIB_API bool cixl_put(const int x, const int y, const CIXL_Cxl cxl);
 
-CIXLLIB_API bool cixl_puti(const int x, const int y, int *cxl);
+CIXLLIB_API bool cixl_puti(const int x, const int y, int32_t *cxl);
 
 CIXLLIB_API void cixl_puts(const int start_x, const int y, const char *str, const int size, const CIXL_Color fg_color,
                            const CIXL_Color bg_color, const CIXL_StyleOpts decoration);
 
 CIXLLIB_API CIXL_Cxl cixl_pick(const int x, const int y);
 
-CIXLLIB_API int cixl_pack(CIXL_Cxl *cxl);
+CIXLLIB_API int32_t cixl_pack_cxl(CIXL_Cxl *cxl);
 
-CIXLLIB_API CIXL_Cxl *cixl_unpack(int *cxl_ptr);
+CIXLLIB_API CIXL_Cxl *cixl_unpack_cxl(int32_t *cxl_ptr);
 
 CIXLLIB_API void cixl_reset();
 

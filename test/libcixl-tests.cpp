@@ -11,24 +11,24 @@
 
 #define CATCH_CONFIG_MAIN // provides main(); this line is required in only one .cpp file
 
-#include "catch.hpp"
+#include "deps/catch.hpp"
 #include "../src/libcixl.h"
 
 TEST_CASE("Pack CIXL_Cxl", "should be valid")
 {
     CIXL_Cxl a{65, 0, 0, 0};
 
-    REQUIRE(cixl_pack(&a) == 65);
+    REQUIRE(cixl_pack_cxl(&a) == 65);
 }
 
 TEST_CASE("Unpack CIXL_Cxl", "should be valid")
 {
     CIXL_Cxl a{65, 0, 0, 0};
-    int      int_value = cixl_pack(&a);
+    int      int_value = cixl_pack_cxl(&a);
     int  *int_ptr  = &int_value;
 
-    CIXL_Cxl *unpacked_cixel          = cixl_unpack(int_ptr);
-    int      unpacked_cixel_int_value = cixl_pack(unpacked_cixel);
+    CIXL_Cxl *unpacked_cixel          = cixl_unpack_cxl(int_ptr);
+    int      unpacked_cixel_int_value = cixl_pack_cxl(unpacked_cixel);
 
     REQUIRE(65 == unpacked_cixel_int_value);
 }
@@ -41,7 +41,7 @@ TEST_CASE("cixl_put and cixl_pick", "should be valid")
 
     CIXL_Cxl b = cixl_pick(1, 1);
 
-    REQUIRE(cixl_pack(&a) == cixl_pack(&b));
+    REQUIRE(cixl_pack_cxl(&a) == cixl_pack_cxl(&b));
 }
 
 TEST_CASE("cxl_is_out_of_drawing_area", "should be valid")
