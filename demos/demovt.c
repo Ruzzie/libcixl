@@ -10,7 +10,7 @@
 #include <string.h>
 #include <conio.h>
 #include <time.h>
-#include "libcixl.h"
+#include "../src/libcixl.h"
 
 int move_cursor(int x, int y)
 {

@@ -4,7 +4,7 @@ set(CMAKE_C_STANDARD 90)
 add_library(libcixl SHARED)
 add_library(libcixl-for-testing SHARED)
 
-set(LIBCIXL_SOURCES libcixl.c)
+set(LIBCIXL_SOURCES libcixl.h libcixl/cxl.c libcixl/console.c libcixl/libcixl.h )
 
 target_sources(
         libcixl
@@ -24,10 +24,11 @@ target_compile_definitions(libcixl-for-testing PUBLIC LIBCIXL_EXPORTS)
 target_compile_definitions(libcixl PRIVATE LIBCIXL_EXPORTS)
 
 
+#[[
 target_include_directories(libcixl
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
         )
 
 target_include_directories(libcixl-for-testing
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-        )
+        )]]

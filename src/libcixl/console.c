@@ -1,4 +1,4 @@
-#include "libcixl.h"
+#include "console.h"
 
 #ifndef NULL
 #ifdef __cplusplus
@@ -8,26 +8,6 @@
 #endif
 #endif
 
-#ifndef __cplusplus
-const CIXL_Cxl CXL_EMPTY = {0, 0, 0, 0};
-#endif
-
-struct CXL_TermSize
-{
-    int width;
-    int height;
-    int area;
-};
-
-int32_t cixl_pack_cxl(CIXL_Cxl *cxl)
-{
-    return *(int *) (cxl);
-}
-
-CIXL_Cxl *cixl_unpack_cxl(int32_t *cxl_ptr)
-{
-    return (CIXL_Cxl *) cxl_ptr;
-}
 
 bool cxl_is_out_of_drawing_area(const int x, const int y, const int num_chars)
 {
@@ -102,7 +82,7 @@ CIXL_Cxl buffer_pick_current(const int index)
     }
     else
     {
-        return CXL_EMPTY;
+        return (CXL_EMPTY);
     }
 }
 
