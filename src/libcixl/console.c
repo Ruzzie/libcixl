@@ -107,7 +107,7 @@ bool buffer_put_current(const int index, const CIXL_Cxl cxl)
         return false;
     }
 }
-
+bool SCREEN_BUFFER_IS_DIRTY = false;
 bool buffer_put_next(const int index, const CIXL_Cxl cxl)
 {
     if (index >= TERM_AREA)
@@ -121,6 +121,7 @@ bool buffer_put_next(const int index, const CIXL_Cxl cxl)
 
         /*Set State to IsDirty*/
         *state |= STATE_IS_DIRTY_FLAG;
+        SCREEN_BUFFER_IS_DIRTY = true;
         return true;
     }
 }
@@ -363,6 +364,9 @@ static inline int render_flush_line_buffer(const int x, const int y, const CIXL_
 
 int cixl_render()
 {
+    if(SCREEN_BUFFER_IS_DIRTY == false)
+        return 0;
+
     if (!INITIALIZED)
     {
         return -2;
@@ -434,6 +438,7 @@ int cixl_render()
         if(line_buffer_size > 0 ) //flush buffer with remaining cxl s
             draw_call_count += render_flush_line_buffer(draw_x, draw_y, last_cxl, &line_buffer_size);
 
+        SCREEN_BUFFER_IS_DIRTY = false;
         return draw_call_count;
     }
 }
