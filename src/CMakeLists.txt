@@ -1,16 +1,28 @@
 cmake_minimum_required(VERSION 3.16)
 set(CMAKE_C_STANDARD 90)
 
-add_library(libcixl SHARED)
+set(LIBCIXL_SOURCES
+        libcixl.h
+        libcixl/colors.c
+        libcixl/console.c
+        libcixl/cxl.c
+        libcixl/libcixl.h )
+
+add_library(libcixl SHARED ${LIBCIXL_SOURCES})
+add_library(libcixl-static ${LIBCIXL_SOURCES})
 add_library(libcixl-for-testing SHARED)
 
-set(LIBCIXL_SOURCES libcixl.h libcixl/cxl.c libcixl/console.c libcixl/libcixl.h )
 
+
+#[[
 target_sources(
         libcixl
         PRIVATE
             ${LIBCIXL_SOURCES}
 )
+]]
+
+
 
 target_sources(
         libcixl-for-testing
@@ -23,6 +35,8 @@ target_compile_definitions(libcixl-for-testing PUBLIC LIBCIXL_EXPORTS)
 
 target_compile_definitions(libcixl PRIVATE LIBCIXL_EXPORTS)
 
+target_compile_definitions(libcixl-static PRIVATE LIBCIXL_STATIC)
+
 
 #[[
 target_include_directories(libcixl
@@ -31,4 +45,5 @@ target_include_directories(libcixl
 
 target_include_directories(libcixl-for-testing
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-        )]]
+        )
+]]

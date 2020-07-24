@@ -166,7 +166,7 @@ TEST_CASE("clear and render should result in 0 draw calls", "smoke test")
 {
     //Arrange
     CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
-    cixl_init(&x);
+    cixl_init_render_device(&x);
     cixl_reset();
     cixl_render();
 
@@ -184,7 +184,7 @@ TEST_CASE("first render ok", "smoke test")
     CIXL_Cxl a{'A', 0, 0, 0};
 
     CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
-    cixl_init(&x);
+    cixl_init_render_device(&x);
     cixl_reset();
 
     REQUIRE(cixl_put(0, 1, a));
@@ -202,7 +202,7 @@ TEST_CASE("write line buffer second render ok", "smoke test")
     CIXL_Cxl     a{'A', 0, 0, 0};
     CIXL_Cxl          b{'B', 0, 0, 0};
     CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
-    cixl_init(&x);
+    cixl_init_render_device(&x);
 
     cixl_reset();
     cixl_render();
@@ -225,33 +225,39 @@ TEST_CASE("render calls draw_s for same cixel styles on same line..", "smoke tes
 {
     //Arrange
     CIXL_Cxl          a{'A', 0, 0, 0};
+    CIXL_Cxl          b{'B', CIXL_Color_Green, 0, 0};
     CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
-    cixl_init(&x);
+    cixl_init_render_device(&x);
 
     cixl_reset();
 
     //put a string block, this should result in one draw call when rendered
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 5; i++)
     {
         REQUIRE(cixl_put(i, 1, a));
+    }
+    //write immediately after previous on the same line, with a different style
+    for (int i = 5; i < 10; i++)
+    {
+        REQUIRE(cixl_put(i, 1, b));
     }
 
     //Act
     int draw_count = cixl_render();
 
     //Assert
-    REQUIRE(draw_count == 1);
-    REQUIRE(LAST_START_X_CALLED == 0);
+    REQUIRE(draw_count == 2);//2 draw count, 2 styles
+    REQUIRE(LAST_START_X_CALLED == 5);
     REQUIRE(LAST_START_Y_CALLED == 1);
 
-    REQUIRE(LAST_STR_CALLED == std::string("AAAAAAAAAA"));
+    REQUIRE(LAST_STR_CALLED == std::string("BBBBB"));
 }
 
 TEST_CASE("render calls draw_s for when writing with puts", "smoke test")
 {
     //Arrange
     CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
-    cixl_init(&x);
+    cixl_init_render_device(&x);
 
     cixl_reset();
 

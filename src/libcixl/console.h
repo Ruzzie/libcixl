@@ -6,7 +6,9 @@
 #define LIBCIXL_CONSOLE_H
 
 #include "config.h"
+
 #include "cxl.h"
+#include "colors.h"
 
 #define TERM_WIDTH 80
 #define TERM_HEIGHT 25
@@ -52,7 +54,7 @@ int cxl_index_for_xy(int x, int y);
 
 #endif
 
-CIXLLIB_API void cixl_init(CIXL_RenderDevice *device);
+CIXLLIB_API void cixl_init_render_device(CIXL_RenderDevice *device);
 
 CIXLLIB_API bool cixl_put(const int x, const int y, const CIXL_Cxl cxl);
 
@@ -62,8 +64,6 @@ CIXLLIB_API void cixl_puts(const int start_x, const int y, const char *str, cons
                            const CIXL_Color bg_color, const CIXL_StyleOpts decoration);
 
 CIXLLIB_API CIXL_Cxl cixl_pick(const int x, const int y);
-
-
 
 CIXLLIB_API void cixl_reset();
 

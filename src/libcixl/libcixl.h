@@ -6,6 +6,7 @@
 #define LIBCIXL_LIBCIXL_H
 
 #include "cxl.h"
+#include "colors.h"
 #include "console.h"
 
 #endif //LIBCIXL_LIBCIXL_H

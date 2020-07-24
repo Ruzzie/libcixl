@@ -10,10 +10,9 @@
 
 #include <stdint.h>
 #include "config.h"
+#include "colors.h"
 
-typedef uint8_t     CIXL_byte_t;
-typedef CIXL_byte_t CIXL_Color;
-typedef CIXL_byte_t CIXL_StyleOpts;
+typedef uint8_t CIXL_StyleOpts;
 
 typedef struct CIXL_Cxl
 {
@@ -30,7 +29,7 @@ extern "C" {
 #ifdef __cplusplus
 const CIXL_Cxl CXL_EMPTY{0, 0, 0, 0};
 #else
-const struct CIXL_Cxl CXL_EMPTY;
+extern const struct CIXL_Cxl CXL_EMPTY;
 #endif
 
 CIXLLIB_API int32_t cixl_pack_cxl(CIXL_Cxl *cxl);

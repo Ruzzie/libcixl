@@ -5,4 +5,6 @@ target_sources(demovt
         PRIVATE
             demovt.c
         )
-target_link_libraries(demovt PRIVATE libcixl)
+
+target_compile_definitions(libcixl-static PUBLIC LIBCIXL_STATIC)
+target_link_libraries(demovt PRIVATE libcixl-static)
