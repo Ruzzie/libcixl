@@ -1,23 +1,38 @@
 = Cixl - The Tiny Text Console Game Library
 
+This is an idea in development. To explore structured and imperative programming in (for now) C.
+If you are looking for a mature solid solution, look at libtcod or (n)(pd)curses.
+
+[ditaa]
+....
+ D ->
+
+ |
+ v
+....
+
+
 First things
 
-- structure libcixl
-- create build pipeline
-- colored / decorated cixl strings
+- setup structure libcixl [done]
+- colored cxl strings     [done]
+- decorated cxl strings
+- format cxl strings api / vm / solution
 - game loop
+- simple efficient layers
 - pure c ansivt demo
 - netcore demo
+- create build pipeline
 
 == Constraints
 - must also compile with openwatcom
 - at least cross platform (ish) c interface
 - must be able to interop with netcore
-- when complex internal / dependencies are needed, prefer rust over cpp, has easier dev env. experience
+- when complex internal (non-dos) / dependencies are needed, prefer rust over cpp, has easier dev env. experience
 - no restrictive licensing
 
 == Goals
-- Fun constraints for game development!
+- Fun constraints for simple game development!
 - Can create a game under 1.44MB
 - Runs on windows32/64 and Dos (16)
     * Separate rendering: can be Terminal / Text / Conio / Console / SDL / Bearlib / SadConsole etc.

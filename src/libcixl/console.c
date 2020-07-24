@@ -243,7 +243,8 @@ bool cixl_put(const int x, const int y, const CIXL_Cxl cxl)
         }
 
         /*todo; this check could be removed, first have an extensive test harness*/
-        if (!cxl_equals(&cxl, &current_cxl))
+        /*  if (!cxl_equals(&cxl, &current_cxl))
+          {*/
         {
             bool put_result = buffer_put_next(index, cxl);
             if (is_dirty == false)
@@ -256,8 +257,9 @@ bool cixl_put(const int x, const int y, const CIXL_Cxl cxl)
 
             return put_result;
         }
+        //}
 
-        return false;
+        //return false;
     }
 }
 
@@ -331,15 +333,14 @@ void cixl_init_render_device(CIXL_RenderDevice *device)
     INITIALIZED   = true;
 }
 
-static inline int
-render_flush_line_buffer(const int draw_x, const int draw_y, const CIXL_Cxl *last_cxl, int *line_buffer_size)
+static inline int render_flush_line_buffer(const int x, const int y, const CIXL_Cxl last_cxl, int *line_buffer_size)
 {
     int draw_call_count = 0;
 
     //check the line buffer and Draw a single cxl, or a str
     if ((*line_buffer_size) == 1)
     {
-        RENDER_DEVICE.f_draw_cxl(draw_x, draw_y, (*last_cxl));
+        RENDER_DEVICE.f_draw_cxl(x, y, last_cxl);
         (*line_buffer_size) = 0;
         return ++draw_call_count;
     }
@@ -350,10 +351,9 @@ render_flush_line_buffer(const int draw_x, const int draw_y, const CIXL_Cxl *las
          if (*line_buffer_size > TERM_WIDTH)
              return -1;
         */
-
         c_str_terminate(LINE_BUFFER, *line_buffer_size);
-        RENDER_DEVICE.f_draw_cxl_s(draw_x, draw_y, &LINE_BUFFER[0], (*line_buffer_size), (*last_cxl).fg_color,
-                                   (*last_cxl).bg_color, (*last_cxl).decoration);
+        RENDER_DEVICE.f_draw_cxl_s(x, y, &LINE_BUFFER[0], (*line_buffer_size), last_cxl.fg_color, last_cxl.bg_color,
+                                   last_cxl.decoration);
         (*line_buffer_size) = 0;
         return ++draw_call_count;
     }
@@ -395,7 +395,7 @@ int cixl_render()
                 if (continuationOnSameLineHasEnded ||
                     line_buffer_size == TERM_WIDTH) //not at start:check if continuation on same line has stopped,or EOL
                 {
-                    draw_call_count += render_flush_line_buffer(draw_x, draw_y, &last_cxl, &line_buffer_size);
+                    draw_call_count += render_flush_line_buffer(draw_x, draw_y, last_cxl, &line_buffer_size);
                 }
 
                 /*When the state IsDirty an put cxl in line-buffer to prepare for draw*/
@@ -408,7 +408,7 @@ int cixl_render()
                     //Same line continuation, different styles, flush buffer to a draw call
                     if (isContinuationOnSameLine && !cxl_style_equals(&next_cxl_to_draw, &last_cxl))
                     {
-                        draw_call_count += render_flush_line_buffer(draw_x, draw_y, &last_cxl, &line_buffer_size);
+                        draw_call_count += render_flush_line_buffer(draw_x, draw_y, last_cxl, &line_buffer_size);
                     }
 
                     if (line_buffer_size == 0) // line buffer is empty, remember x and y, where it al began
@@ -430,8 +430,9 @@ int cixl_render()
             ++i;
         }
 
-        //flush buffer with remaining cxl s
-        draw_call_count += render_flush_line_buffer(draw_x, draw_y, &last_cxl, &line_buffer_size);
+
+        if(line_buffer_size > 0 ) //flush buffer with remaining cxl s
+            draw_call_count += render_flush_line_buffer(draw_x, draw_y, last_cxl, &line_buffer_size);
 
         return draw_call_count;
     }
