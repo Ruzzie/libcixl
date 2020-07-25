@@ -5,6 +5,7 @@
 #ifndef LIBCIXL_CONSOLE_H
 #define LIBCIXL_CONSOLE_H
 
+#include "std/cixl_stdbool.h"
 #include "config.h"
 
 #include "cxl.h"
@@ -22,12 +23,6 @@ typedef struct CIXL_RenderDevice
                          const CIXL_Color bg_color, const CIXL_StyleOpts decoration);
 } CIXL_RenderDevice;
 
-#ifndef __cplusplus
-typedef enum
-{
-    false, true
-} bool;
-#endif
 
 #ifdef __cplusplus
 extern "C" {

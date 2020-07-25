@@ -25,7 +25,7 @@ TEST_CASE("Unpack CIXL_Cxl", "should be valid")
 {
     CIXL_Cxl a{65, 0, 0, 0};
     int      int_value = cixl_pack_cxl(&a);
-    int  *int_ptr  = &int_value;
+    int      *int_ptr  = &int_value;
 
     CIXL_Cxl *unpacked_cixel          = cixl_unpack_cxl(int_ptr);
     int      unpacked_cixel_int_value = cixl_pack_cxl(unpacked_cixel);
@@ -134,7 +134,7 @@ int move_cursor(int x, int y, FILE *output)
     return fprintf(output, "\033[%i;%iH", x, y);
 }
 
-int  LAST_START_X_CALLED = -1;
+int      LAST_START_X_CALLED = -1;
 int      LAST_START_Y_CALLED = -1;
 CIXL_Cxl LAST_CIXL_CALLED    = CXL_EMPTY;
 char     *LAST_STR_CALLED    = nullptr;
@@ -150,9 +150,8 @@ void draw_cixl(const int start_x, const int start_y, const CIXL_Cxl cixl)
     fputc(cixl.char_value, stdout);
 }
 
-void
-draw_cixl_s(const int start_x, const int start_y, char *str, const int size, const CIXL_Color fg_color, const CIXL_Color bg_color,
-            const CIXL_StyleOpts decoration)
+void draw_cixl_s(const int start_x, const int start_y, char *str, const int size, const CIXL_Color fg_color,
+                 const CIXL_Color bg_color, const CIXL_StyleOpts decoration)
 {
     LAST_START_X_CALLED = start_x;
     LAST_START_Y_CALLED = start_y;
@@ -199,7 +198,7 @@ TEST_CASE("first render ok", "smoke test")
 TEST_CASE("write line buffer second render ok", "smoke test")
 {
     //Arrange
-    CIXL_Cxl     a{'A', 0, 0, 0};
+    CIXL_Cxl          a{'A', 0, 0, 0};
     CIXL_Cxl          b{'B', 0, 0, 0};
     CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
     cixl_init_render_device(&x);
@@ -215,7 +214,7 @@ TEST_CASE("write line buffer second render ok", "smoke test")
     //Act
     REQUIRE(cixl_put(0, 1, a));
     REQUIRE(cixl_put(79, 24, b));
-    int          draw_count = cixl_render();
+    int               draw_count = cixl_render();
 
     //Assert
     REQUIRE(draw_count == 2);
@@ -274,6 +273,46 @@ TEST_CASE("render calls draw_s for when writing with puts", "smoke test")
     REQUIRE(LAST_START_Y_CALLED == 1);
 
     REQUIRE(LAST_STR_CALLED == std::string("AAAAAAAAAA"));
+}
+
+TEST_CASE("game ms_to_ticks", "smoke test")
+{
+    REQUIRE(ms_to_ticks(10, 1000) == 10);
+    REQUIRE(ms_to_ticks(10, 1001) == 10);
+    REQUIRE(ms_to_ticks(2000, 1000) == 2000);
+}
+
+TEST_CASE("game ticks_to_ms", "smoke test")
+{
+    REQUIRE(ticks_to_ms(16, 1000) == 16);
+    REQUIRE(ticks_to_ms(16, 1001) == 15);
+    REQUIRE(ticks_to_ms(500, 1001) == 499);
+
+    REQUIRE(ticks_to_ms(500, CLOCKS_PER_SEC) == 500);
+}
+
+TEST_CASE("game one tick fixed step should progress 16 ms", "smoke test")
+{
+
+    CIXL_Game *p_cixl_game = cixl_game_default();
+    REQUIRE(p_cixl_game->is_fixed_time_step);
+    REQUIRE(p_cixl_game->clocks_per_second == CLOCKS_PER_SEC);
+
+    bool    should_exit   = false;
+    REQUIRE(cixl_game_init(p_cixl_game, NULL) == 1);
+    clock_t current_ticks = clock();
+    REQUIRE(current_ticks > 0);
+
+    //Perform one init tick plus one
+    REQUIRE(cixl_game_tick(&CURRENT_GAME_TIME, NULL, &should_exit) == 1);
+    REQUIRE(cixl_game_tick(&CURRENT_GAME_TIME, NULL, &should_exit) == 1);
+
+
+    REQUIRE(CURRENT_GAME_TIME.elapsed_game_time_ticks == 16);
+    REQUIRE(CURRENT_GAME_TIME.elapsed_game_time_ms == 16);
+    REQUIRE(CURRENT_GAME_TIME.total_game_time_ticks == 32);
+
+
 }
 
 #pragma clang diagnostic pop

@@ -8,5 +8,6 @@
 #include "cxl.h"
 #include "colors.h"
 #include "console.h"
+#include "game.h"
 
 #endif //LIBCIXL_LIBCIXL_H

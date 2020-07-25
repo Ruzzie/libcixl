@@ -1,4 +1,4 @@
-#include <stdint.h>
+#include "std/cixl_stdint.h"
 #include "console.h"
 
 #ifndef NULL
@@ -8,7 +8,6 @@
 #define NULL ((void *)0)
 #endif
 #endif
-
 
 bool cxl_is_out_of_drawing_area(const int x, const int y, const int num_chars)
 {
@@ -107,7 +106,9 @@ bool buffer_put_current(const int index, const CIXL_Cxl cxl)
         return false;
     }
 }
-bool SCREEN_BUFFER_IS_DIRTY = false;
+
+bool SCREEN_BUFFER_IS_DIRTY          = false;
+
 bool buffer_put_next(const int index, const CIXL_Cxl cxl)
 {
     if (index >= TERM_AREA)
@@ -205,6 +206,7 @@ static inline bool cxl_style_equals(const CIXL_Cxl *left, const CIXL_Cxl *right)
     return left->fg_color == right->fg_color && left->bg_color == right->bg_color &&
            left->decoration == right->decoration;
 }
+
 
 bool cixl_put(const int x, const int y, const CIXL_Cxl cxl)
 {
@@ -325,7 +327,7 @@ static inline void c_str_terminate(char *src, const int size)
 }
 
 static CIXL_RenderDevice RENDER_DEVICE;
-static bool              INITIALIZED      = false;
+static bool              INITIALIZED = false;
 static char              LINE_BUFFER[TERM_WIDTH + 1];
 
 void cixl_init_render_device(CIXL_RenderDevice *device)
@@ -364,8 +366,10 @@ static inline int render_flush_line_buffer(const int x, const int y, const CIXL_
 
 int cixl_render()
 {
-    if(SCREEN_BUFFER_IS_DIRTY == false)
+    if (SCREEN_BUFFER_IS_DIRTY == false)
+    {
         return 0;
+    }
 
     if (!INITIALIZED)
     {
@@ -394,9 +398,9 @@ int cixl_render()
             {//:{}(for OpenWatcom compatibility)
                 CIXL_CxlState current_state = SCREEN_BUFFER.state_buffer[i];
 
-                bool continuationOnSameLineHasEnded = prev_written_idx != i - 1 && i > 0;
+                bool continuation_on_same_line_has_ended = prev_written_idx != i - 1 && i > 0;
 
-                if (continuationOnSameLineHasEnded ||
+                if (continuation_on_same_line_has_ended ||
                     line_buffer_size == TERM_WIDTH) //not at start:check if continuation on same line has stopped,or EOL
                 {
                     draw_call_count += render_flush_line_buffer(draw_x, draw_y, last_cxl, &line_buffer_size);
@@ -405,12 +409,13 @@ int cixl_render()
                 /*When the state IsDirty an put cxl in line-buffer to prepare for draw*/
                 if (state_is_dirty(current_state))
                 {
-                    bool isContinuationOnSameLine = prev_written_idx == i - 1 && i > 0;
+                    bool is_continuation_on_same_line = prev_written_idx == i - 1 && i > 0;
 
                     CIXL_Cxl next_cxl_to_draw = buffer_pick_next_optimized(i);
 
+
                     //Same line continuation, different styles, flush buffer to a draw call
-                    if (isContinuationOnSameLine && !cxl_style_equals(&next_cxl_to_draw, &last_cxl))
+                    if (is_continuation_on_same_line && !cxl_style_equals(&next_cxl_to_draw, &last_cxl))
                     {
                         draw_call_count += render_flush_line_buffer(draw_x, draw_y, last_cxl, &line_buffer_size);
                     }
@@ -435,8 +440,10 @@ int cixl_render()
         }
 
 
-        if(line_buffer_size > 0 ) //flush buffer with remaining cxl s
+        if (line_buffer_size > 0)
+        { //flush buffer with remaining cxl s
             draw_call_count += render_flush_line_buffer(draw_x, draw_y, last_cxl, &line_buffer_size);
+        }
 
         SCREEN_BUFFER_IS_DIRTY = false;
         return draw_call_count;

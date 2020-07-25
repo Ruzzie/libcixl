@@ -1,7 +1,7 @@
 #ifndef LIBCIXL_COLORS_H
 #define LIBCIXL_COLORS_H
 
-#include <stdint.h>
+#include "std/cixl_stdint.h"
 #include "config.h"
 
 typedef uint8_t CIXL_Color;

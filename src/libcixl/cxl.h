@@ -8,7 +8,7 @@
 #ifndef LIBCIXL_CXL_H
 #define LIBCIXL_CXL_H
 
-#include <stdint.h>
+#include "std/cixl_stdint.h"
 #include "config.h"
 #include "colors.h"
 

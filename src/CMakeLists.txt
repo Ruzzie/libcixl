@@ -6,6 +6,7 @@ set(LIBCIXL_SOURCES
         libcixl/colors.c
         libcixl/console.c
         libcixl/cxl.c
+        libcixl/game.c
         libcixl/libcixl.h )
 
 add_library(libcixl SHARED ${LIBCIXL_SOURCES})
