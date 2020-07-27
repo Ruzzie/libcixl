@@ -41,7 +41,7 @@ extern CIXLLIB_API const CIXL_Color Magenta_Bright;
 extern CIXLLIB_API const CIXL_Color Cyan_Bright;
 extern CIXLLIB_API const CIXL_Color White_Bright;
 
-extern const CIXL_Color Grey_0;
+/*extern const CIXL_Color Grey_0;
 extern const CIXL_Color Grey_1;
 extern const CIXL_Color Grey_2;
 extern const CIXL_Color Grey_3;
@@ -64,7 +64,7 @@ extern const CIXL_Color Grey_19;
 extern const CIXL_Color Grey_20;
 extern const CIXL_Color Grey_21;
 extern const CIXL_Color Grey_22;
-extern const CIXL_Color Grey_23;
+extern const CIXL_Color Grey_23;*/
 
 #ifdef __cplusplus
 extern "C" {

@@ -5,7 +5,7 @@
  * \copyright Dorus Verhoeckx or https://unlicense.org/ or  https://mit-license.org/
  * document with https://www.doxygen.nl/manual/docblocks.html#cppblock
  * */
-#include<stdio.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <conio.h>
@@ -40,34 +40,67 @@ void set_video_mode()
 {
     /*80x25 color text
     https://www.robvanderwoude.com/ansi.php*/
-    puts("\033[=3h;\033[=3l;");
+    //puts("\033[=3h;\033[=3l;");
+
+    /*320x200 16 colors*/
+    //puts("\033[=13h\033[=13l");
+
+    /*640x200 16 colors*/
+    /* puts("\033[=14h");*/
+
+    /*640x200 16 colors*/
+    puts("\033[=18h");
+}
+
+void reset_video_mode()
+{
+    puts("\033[=18l");
 }
 
 
-int curr_fg_color = -1;
-int curr_bg_color = -1;
+int CURR_FG_COLOR = -1;
+int CURR_BG_COLOR = -1;
 
-int fg_color_map[16] = {30, 31, 32, 33, 34, 35, 36, 37, 90, 91, 92, 93, 94, 95, 96, 97};
-int bg_color_map[16] = {40, 41, 42, 43, 44, 45, 46, 47, 100, 101, 102, 103, 104, 105, 106, 107};
+int FG_COLOR_MAP[16] = {30, 31, 32, 33, 34, 35, 36, 37, 90, 91, 92, 93, 94, 95, 96, 97};
+int BG_COLOR_MAP[16] = {40, 41, 42, 43, 44, 45, 46, 47, 100, 101, 102, 103, 104, 105, 106, 107};
 
 
 inline void set_fg_color(const int color)
 {
-    if (curr_fg_color != color)
+    if (CURR_FG_COLOR != color)
     {
         //printf("\033[38;5;%im", color);//8 bit fg color sgr
-        printf("\033[%im", fg_color_map[color]); // 4 bit color sgr
-        curr_fg_color = color;
+        if (color > 47)
+        {
+            //bright color: try with bold decoration, for older systems
+            printf("\033[%i;1m", FG_COLOR_MAP[color - 60]); // 4 bit color sgr
+        }
+        else
+        {
+            //dim color
+            printf("\033[%i;2m", FG_COLOR_MAP[color]); // 4 bit color sgr
+        }
+
+        CURR_FG_COLOR = color;
     }
 }
 
 inline void set_bg_color(const int color)
 {
-    if (curr_bg_color != color)
+    if (CURR_BG_COLOR != color)
     {
+        if (color > 47)
+        {
+            //bright color: try with bold decoration, for older systems
+            printf("\033[%i;1m", BG_COLOR_MAP[color] - 60); // 4 bit color sgr
+        }
+        else
+        {
+            printf("\033[%i;2m", BG_COLOR_MAP[color]); // 4 bit color sgr
+        }
         //printf("\033[48;5;%im", color);//8 bit bg color sgr
-        printf("\033[%im", bg_color_map[color]); // 4 bit color sgr
-        curr_bg_color = color;
+
+        CURR_BG_COLOR = color;
     }
 }
 
@@ -79,7 +112,7 @@ void draw_cixl(const int start_x, const int start_y, const CIXL_Cxl cxl)
     putchar(cxl.char_value);
 }
 
-void draw_cixl_s(const int start_x, const int start_y, char *str, const int size, const CIXL_Color fg_color,
+void draw_cixl_s(const int start_x, const int start_y, char *str, unsigned const int size, const CIXL_Color fg_color,
                  const CIXL_Color bg_color, const CIXL_StyleOpts decoration)
 {
     set_fg_color(fg_color);
@@ -98,27 +131,75 @@ static char INPUT_BUFFER[DEMO_VT_MAX_INPUT_BUFFER_SIZE];//arbitrary size, what i
 static int  INPUT_BUFFER_SIZE             = 0;
 CIXL_Cxl    PLAYER                        = {'@', CIXL_Color_White_Bright, CIXL_Color_Black, 0};
 
+CIXL_Game *GAME;
+
+char         STATS_PER_SECONDS_S[54];
+
+void update(const CIXL_GameTime *game_time, void *shared_state)
+{
+    while (_kbhit() && (INPUT_BUFFER_SIZE < DEMO_VT_MAX_INPUT_BUFFER_SIZE)) //check for keys in input buffer
+    {
+        INPUT_BUFFER[INPUT_BUFFER_SIZE++] = (char) _getch();
+    }
+
+    if (INPUT_BUFFER_SIZE != 0)
+    {
+        cixl_puts_hor(0, 12, INPUT_BUFFER, CIXL_Color_Magenta, CIXL_Color_Green, 0);
+        INPUT_BUFFER_SIZE = 0;
+        if (INPUT_BUFFER[0] == 'x')
+        {
+            GAME->f_exit_game();
+        }
+    }
+
+    sprintf(STATS_PER_SECONDS_S, "[%u](s:%i)|[elms:%lu][t_ticks:%lu][lag:%i][step:%i]", game_time->current_fps,
+            (game_time->is_running_slowly), game_time->elapsed_game_time_ms, game_time->total_game_time_ticks,
+            game_time->frame_lag, game_time->step_count);
+
+    cixl_puts_hor(0, 0, STATS_PER_SECONDS_S, 0, CIXL_Color_Grey, 0);
+}
+
+void draw(const CIXL_GameTime *game_time, void *shared_state)
+{
+    if (cixl_render() > 0) //only flush when there is new data
+    {
+        fflush(stdout);
+    }
+}
+
 int main(void)
 {
-    unsigned int total_loop_count = 0;
-    clock_t      program_begin    = clock(), begin, total_loop_time_clocks = 0;
-    char         loops_per_seconds_s[32];
-    char         clock_info_s[48];
+    char clock_info_s[48];
 
+    GAME = cixl_game_default();
+    #ifdef __DOS__
+    //For now since custom interrupt timers are not (yet?) implemented, set dos to a target time rate of 18 fps
+    GAME->is_fixed_time_step         = true;
+    GAME->target_elapsed_time_millis = 56;//18fps
+    #else
+    GAME->is_fixed_time_step         = true;
+    GAME->target_elapsed_time_millis = 16;//60fps
+    #endif
+    GAME->clocks_per_second       = CLOCKS_PER_SEC;
+    GAME->max_elapsed_time_millis = 500;
+
+    GAME->f_update_game = update;
+    GAME->f_draw_game   = draw;
+    cixl_game_init(GAME, NULL);
     cixl_init_render_device(&VT_RENDER_DEVICE);
 
     hide_cursor();
-    set_video_mode();
+    //set_video_mode();
     cls();
     move_cursor(0, 0);
 
 
     cixl_put(0, 12, PLAYER);
-    cixl_puts(0, 0, HEADER_S, (int) strlen(HEADER_S), CIXL_Color_White_Bright, CIXL_Color_Black, 0);
-    cixl_puts(0, 1, INFO_LINE_S, (int) strlen(INFO_LINE_S), CIXL_Color_White_Bright, CIXL_Color_Black, 0);
+    cixl_puts_hor(0, 1, HEADER_S, CIXL_Color_White_Bright, CIXL_Color_Black, 0);
+    cixl_puts_hor(0, 2, INFO_LINE_S, CIXL_Color_White_Bright, CIXL_Color_Black, 0);
 
-    sprintf(clock_info_s, "cps: %lu beginclock:%lu", CLOCKS_PER_SEC, program_begin);
-    cixl_puts(0, 2, clock_info_s, (int) strlen(clock_info_s), CIXL_Color_White_Bright, CIXL_Color_Black, 0);
+    sprintf(clock_info_s, "cps: %lu beginclock:%lu", CLOCKS_PER_SEC, clock());
+    cixl_puts_hor(0, 3, clock_info_s, CIXL_Color_White_Bright, CIXL_Color_Black, 0);
 
     {
         //Print color line
@@ -135,7 +216,6 @@ int main(void)
                 c->decoration = 0;
 
                 cixl_puti((TERM_WIDTH / 2) + color_x, color_y + 4, (int32_t *) c);
-                //cixl_puti(14 + color_x, 4, (int32_t *) c);
             }
         }
     }
@@ -143,59 +223,14 @@ int main(void)
     cixl_render();   // first render
     fflush(stdout);  // flush output after first render
 
-    while (true)
-    {
-        begin = clock();
+    cixl_game_run();//Run the gameloop
 
-        while (_kbhit() && (INPUT_BUFFER_SIZE < DEMO_VT_MAX_INPUT_BUFFER_SIZE)) //check for keys in input buffer
-        {
-            INPUT_BUFFER[INPUT_BUFFER_SIZE++] = (char) _getch();
-        }
-
-        if (INPUT_BUFFER_SIZE != 0)
-        {
-            cixl_puts(0, 12, INPUT_BUFFER, INPUT_BUFFER_SIZE, CIXL_Color_Magenta, CIXL_Color_Grey, 0);
-            INPUT_BUFFER_SIZE = 0;
-            if (INPUT_BUFFER[0] == 'x')
-            {
-                goto exit;
-            }
-        }
-
-        if ((total_loop_time_clocks / CLOCKS_PER_SEC) == 1) //dirty % calc, mod does not seem to work on dos
-        {
-            float avg_clocks_per_loop  = (total_loop_time_clocks / (float) total_loop_count);
-            float loop_duration_in_sec = avg_clocks_per_loop / (float) CLOCKS_PER_SEC;
-            sprintf(loops_per_seconds_s, "|%.1f|[%lu]<%lu> ", (float) (1.0 / loop_duration_in_sec), begin,
-                    total_loop_time_clocks);
-            cixl_puts(80 - 32, 1, loops_per_seconds_s, (int) strlen(loops_per_seconds_s), 0, CIXL_Color_Grey, 0);
-        }
-
-        if (cixl_render() > 0) //only flush when there is new data
-        {
-            fflush(stdout);
-        }
-
-        if (total_loop_time_clocks >= (CLOCKS_PER_SEC)) //Reset after 1 sec
-        {
-            total_loop_count       = 0;
-            total_loop_time_clocks = 0;
-        }
-        else
-        {
-            total_loop_count++;
-            total_loop_time_clocks += (clock() - begin);
-        }
-    }
-    exit:
-    {
-        //printf("loop count: [%i]\r\n", total_loop_count);
-        show_cursor();
-        //Cleanup
-        printf("\033[0m");
-        return 1;
-    }
-
-    return -1;
+    //printf("loop count: [%i]\r\n", total_loop_count);
+    show_cursor();
+    //reset_video_mode();
+    //Cleanup
+    printf("\033[0m");
+    fflush(stdout);
+    return 1;
 }
 

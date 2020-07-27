@@ -271,20 +271,33 @@ bool cixl_puti(const int x, const int y, int32_t *cxl)
     return cixl_put(x, y, *cixl_unpack_cxl(cxl));
 }
 
-void cixl_puts(const int start_x, const int y, const char *str, const int size, const CIXL_Color fg_color,
-               const CIXL_Color bg_color, const CIXL_StyleOpts decoration)
+// internal secure strlen
+// \return The length of the string (excluding the terminating 0) limited by 'maxsize'
+/*
+static inline unsigned int c_strnlen_s(const char *str, size_t maxsize)
 {
-    int x = start_x;
-    int i;
+    const char *s;
+    for (s = str; *s && maxsize--; ++s);
+    return (unsigned int) (s - str);
+}
+*/
 
-    for (i = 0; x < (start_x + size); x++, i++)
+void
+cixl_puts_hor(const int start_x, const int y, const char *str, const CIXL_Color fg_color, const CIXL_Color bg_color,
+              const CIXL_StyleOpts decoration)
+{
+    int        x       = start_x;
+    unsigned   maxsize = TERM_WIDTH;
+    const char *s;
+
+    //strlen and and copy combined
+    for (s = str; *s && maxsize--; ++s)
     {
         CIXL_Cxl cxl_to_add;
-        cxl_to_add.char_value = str[i];
+        cxl_to_add.char_value = *s;
         cxl_to_add.fg_color   = fg_color;
         cxl_to_add.bg_color   = bg_color;
-
-        cixl_put(x, y, cxl_to_add);
+        cixl_put(x++, y, cxl_to_add);
     }
 }
 
@@ -321,7 +334,7 @@ void cixl_reset()
     }
 }
 
-static inline void c_str_terminate(char *src, const int size)
+static inline void c_str_terminate(char *src, const unsigned int size)
 {
     src[size] = '\0';
 }
@@ -336,7 +349,8 @@ void cixl_init_render_device(CIXL_RenderDevice *device)
     INITIALIZED   = true;
 }
 
-static inline int render_flush_line_buffer(const int x, const int y, const CIXL_Cxl last_cxl, int *line_buffer_size)
+static inline int
+render_flush_line_buffer(const int x, const int y, const CIXL_Cxl last_cxl, unsigned int *line_buffer_size)
 {
     int draw_call_count = 0;
 
@@ -381,10 +395,10 @@ int cixl_render()
         int y               = -1;
         int x;
 
-        int prev_written_idx = -2;
-        int line_buffer_size = 0;
-        int draw_x           = 0;
-        int draw_y           = 0;
+        int          prev_written_idx = -2;
+        unsigned int line_buffer_size = 0;
+        int          draw_x           = 0;
+        int          draw_y           = 0;
 
         CIXL_Cxl last_cxl = CXL_EMPTY;
 
@@ -412,7 +426,6 @@ int cixl_render()
                     bool is_continuation_on_same_line = prev_written_idx == i - 1 && i > 0;
 
                     CIXL_Cxl next_cxl_to_draw = buffer_pick_next_optimized(i);
-
 
                     //Same line continuation, different styles, flush buffer to a draw call
                     if (is_continuation_on_same_line && !cxl_style_equals(&next_cxl_to_draw, &last_cxl))

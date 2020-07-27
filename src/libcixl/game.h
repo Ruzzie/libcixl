@@ -21,8 +21,10 @@ typedef struct CIXL_GameTime
     bool is_running_slowly;
 
     /*! \brief Current frames per second.*/
-    float current_fps;
+    unsigned int current_fps;
 
+    int frame_lag;
+    int step_count;
 } CIXL_GameTime;
 
 typedef struct CIXL_Game
@@ -37,6 +39,9 @@ typedef struct CIXL_Game
     unsigned int max_elapsed_time_millis;//500;
 
     clock_t clocks_per_second;
+
+    /*! \brief To signal exit to the game this method can be called. This should call cixl_game_exit; When created with default, it is automatically set to that.*/
+    int (*f_exit_game)();
 
     /*! \brief This method is called multiple times per second, and is used to update your game state (checking for collisions, gathering input, playing audio, etc.).*/
     void (*f_update_game)(const CIXL_GameTime *game_time, void *shared_state);
@@ -59,7 +64,7 @@ extern struct CIXL_GameTime CURRENT_GAME_TIME;
 
 CIXLLIB_API CIXL_Game *cixl_game_default();
 CIXLLIB_API int cixl_game_init(CIXL_Game *game, void *shared_state);
-CIXLLIB_API int cixl_game_run(const bool *should_exit);
+CIXLLIB_API int cixl_game_run();
 
 #ifdef __cplusplus
 } /* End of extern "C" */
@@ -68,3 +73,4 @@ CIXLLIB_API int cixl_game_run(const bool *should_exit);
 #endif //LIBCIXL_GAME_H
 
 #pragma clang diagnostic pop
+

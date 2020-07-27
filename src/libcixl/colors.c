@@ -17,7 +17,7 @@ const CIXL_Color Magenta_Bright = CIXL_Color_Magenta_Bright;
 const CIXL_Color Cyan_Bright    = CIXL_Color_Cyan_Bright;
 const CIXL_Color White_Bright   = CIXL_Color_White_Bright;
 
-const CIXL_Color Grey_0  = 232;
+/*const CIXL_Color Grey_0  = 232;
 const CIXL_Color Grey_1  = 233;
 const CIXL_Color Grey_2  = 234;
 const CIXL_Color Grey_3  = 235;
@@ -40,4 +40,4 @@ const CIXL_Color Grey_19 = 251;
 const CIXL_Color Grey_20 = 252;
 const CIXL_Color Grey_21 = 253;
 const CIXL_Color Grey_22 = 254;
-const CIXL_Color Grey_23 = 255;
+const CIXL_Color Grey_23 = 255;*/

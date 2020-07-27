@@ -150,7 +150,7 @@ void draw_cixl(const int start_x, const int start_y, const CIXL_Cxl cixl)
     fputc(cixl.char_value, stdout);
 }
 
-void draw_cixl_s(const int start_x, const int start_y, char *str, const int size, const CIXL_Color fg_color,
+void draw_cixl_s(const int start_x, const int start_y, char *str, const unsigned int size, const CIXL_Color fg_color,
                  const CIXL_Color bg_color, const CIXL_StyleOpts decoration)
 {
     LAST_START_X_CALLED = start_x;
@@ -262,7 +262,7 @@ TEST_CASE("render calls draw_s for when writing with puts", "smoke test")
 
     //put a string block, this should result in one draw call when rendered
 
-    cixl_puts(0, 1, "AAAAAAAAAA", 10, 0, 0, 0);
+    cixl_puts_hor(0, 1, "AAAAAAAAAA", 0, 0, 0);
 
     //Act
     int draw_count = cixl_render();
