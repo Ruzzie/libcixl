@@ -5,8 +5,9 @@
 #ifndef LIBCIXL_LIBCIXL_H
 #define LIBCIXL_LIBCIXL_H
 
-#include "cxl.h"
 #include "colors.h"
+#include "style_opts.h"
+#include "cxl.h"
 #include "console.h"
 #include "game.h"
 

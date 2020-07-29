@@ -73,6 +73,14 @@ void buffer_swap_and_clear_is_dirty(const int index)
     }
 }
 
+void buffer_clear_is_dirty(const int index)
+{
+    static const uint8_t one = 1;
+
+    CIXL_CxlState *state = &SCREEN_BUFFER.state_buffer[index];
+    *state &= one; /* Clear is dirty flag, set second bit on 0 and keep first bit*/
+}
+
 CIXL_Cxl buffer_pick_current(const int index)
 {
     if (index < TERM_AREA)
@@ -198,13 +206,13 @@ static inline bool cxl_equals(const CIXL_Cxl *left, const CIXL_Cxl *right)
     }
 
     return left->char_value == right->char_value && left->fg_color == right->fg_color &&
-           left->bg_color == right->bg_color && left->decoration == right->decoration;
+           left->bg_color == right->bg_color && left->style_opts == right->style_opts;
 }
 
 static inline bool cxl_style_equals(const CIXL_Cxl *left, const CIXL_Cxl *right)
 {
     return left->fg_color == right->fg_color && left->bg_color == right->bg_color &&
-           left->decoration == right->decoration;
+           left->style_opts == right->style_opts;
 }
 
 
@@ -229,40 +237,35 @@ bool cixl_put(const int x, const int y, const CIXL_Cxl cxl)
 
         if (cxl_equals(&next_cxl, &cxl))
         {
-            /*the next Cxl to be rendered is the same as the given cixel, so do nothing*/
+            /*the next Cxl to be rendered is the same as the given cxl, so do nothing*/
             return false;
         }
 
         if (is_dirty == true)
         {
             /*The next Cxl to be drawn is already dirty, so just overwrite it*/
-            return buffer_put_next(index, cxl);
+            bool res;
+            res = buffer_put_next(index, cxl);
+
+            //When the next Cxl was the same as the previous one, clear the is dirty flag
+            if (cxl_equals(&cxl, &current_cxl))
+            {
+                /*
+                  For example: draw 'a', draw 'b' render, draw 'a', draw 'b', render
+                   that should not result is redraws, since 'b' was the end result before each render cycle*/
+                buffer_clear_is_dirty(index);
+            }
+            return res;
         }
 
         if (cxl_equals(&cxl, &current_cxl))
         {
-            buffer_swap_and_clear_is_dirty(index);
+            buffer_clear_is_dirty(index);
             return false;
         }
 
-        /*todo; this check could be removed, first have an extensive test harness*/
-        /*  if (!cxl_equals(&cxl, &current_cxl))
-          {*/
-        {
-            bool put_result = buffer_put_next(index, cxl);
-            if (is_dirty == false)
-            {
-                /*Only clear the previous result once
-                  For example: draw 'a', draw 'b' render, draw 'a', draw 'b', render
-                   that should not result is redraws, since 'b' was the end result before each render cycle*/
-                buffer_put_current(index, CXL_EMPTY); //effectively clears the current state
-            }
+        return buffer_put_next(index, cxl);
 
-            return put_result;
-        }
-        //}
-
-        //return false;
     }
 }
 
@@ -283,20 +286,21 @@ static inline unsigned int c_strnlen_s(const char *str, size_t maxsize)
 */
 
 void
-cixl_puts_hor(const int start_x, const int y, const char *str, const CIXL_Color fg_color, const CIXL_Color bg_color,
-              const CIXL_StyleOpts decoration)
+cixl_put_horiz_s(const int start_x, const int y, const char *str, const CIXL_Color fg_color, const CIXL_Color bg_color,
+                 const CIXL_StyleOpts decoration)
 {
     int        x       = start_x;
     unsigned   maxsize = TERM_WIDTH;
     const char *s;
 
-    //strlen and and copy combined
+    //safe strlen and and copy combined
     for (s = str; *s && maxsize--; ++s)
     {
         CIXL_Cxl cxl_to_add;
         cxl_to_add.char_value = *s;
         cxl_to_add.fg_color   = fg_color;
         cxl_to_add.bg_color   = bg_color;
+        cxl_to_add.style_opts = decoration;
         cixl_put(x++, y, cxl_to_add);
     }
 }
@@ -320,6 +324,16 @@ CIXL_Cxl cixl_pick(const int x, const int y)
             return buffer_pick_current(index);
         }
     }
+}
+
+bool cixl_clear(const int x, const int y)
+{
+    return cixl_put(x, y, CXL_EMPTY);
+}
+
+void cixl_clear_area(const int x, const int y, const int w, const int h)
+{
+
 }
 
 void cixl_reset()
@@ -370,7 +384,7 @@ render_flush_line_buffer(const int x, const int y, const CIXL_Cxl last_cxl, unsi
         */
         c_str_terminate(LINE_BUFFER, *line_buffer_size);
         RENDER_DEVICE.f_draw_cxl_s(x, y, &LINE_BUFFER[0], (*line_buffer_size), last_cxl.fg_color, last_cxl.bg_color,
-                                   last_cxl.decoration);
+                                   last_cxl.style_opts);
         (*line_buffer_size) = 0;
         return ++draw_call_count;
     }

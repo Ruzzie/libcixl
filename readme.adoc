@@ -16,13 +16,16 @@ First things
 
 - setup structure libcixl [done]
 - colored cxl strings     [done]
+- game loop [done]
 - decorated cxl strings
 - format cxl strings api / vm / solution
-- game loop
 - simple efficient layers
+- Effects / Animations
 - pure c ansivt demo
 - netcore demo
 - create build pipeline
+
+- dos high resolution timer interrupt
 
 == Constraints
 - must also compile with openwatcom

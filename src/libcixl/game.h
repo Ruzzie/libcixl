@@ -20,7 +20,7 @@ typedef struct CIXL_GameTime
     /*! \brief Indicates if there is lag*/
     bool is_running_slowly;
 
-    /*! \brief Current frames per second.*/
+    /*! \brief Current frames per second. This is updated each second.*/
     unsigned int current_fps;
 
     int frame_lag;
@@ -62,8 +62,8 @@ unsigned int ticks_to_ms(const clock_t ticks, const clock_t clocks_per_second);
 extern struct CIXL_GameTime CURRENT_GAME_TIME;
 #endif
 
-CIXLLIB_API CIXL_Game *cixl_game_default();
-CIXLLIB_API int cixl_game_init(CIXL_Game *game, void *shared_state);
+CIXLLIB_API CIXL_Game *cixl_game_create(clock_t clocks_per_second);
+CIXLLIB_API int cixl_game_init(void *shared_state_ptr);
 CIXLLIB_API int cixl_game_run();
 
 #ifdef __cplusplus

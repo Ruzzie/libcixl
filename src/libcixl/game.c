@@ -34,34 +34,34 @@ inline clock_t ms_to_ticks(const unsigned int ms, const clock_t clocks_per_secon
     return (clock_t) ((ms / 1000.0) * clocks_per_second);
 }
 
-inline clock_t ticks_to_ms(const clock_t ticks, const clock_t clocks_per_second)
+inline unsigned int ticks_to_ms(const clock_t ticks, const clock_t clocks_per_second)
 {
-    return (ticks * 1000.0) / clocks_per_second;
+    return (ticks * 1000) / clocks_per_second;
 }
 
-CIXL_Game *cixl_game_default()
+CIXL_Game *cixl_game_create(clock_t clocks_per_second)
 {
+    CURRENT_GAME->clocks_per_second = clocks_per_second;
     return CURRENT_GAME;
 }
 
-int cixl_game_init(CIXL_Game *game, void *shared_state)
+int cixl_game_init(void *shared_state_ptr)
 {
-    if (game == NULL)
+    if (CURRENT_GAME == NULL)
     {
         return -2;
     }
 
-    CURRENT_GAME        = game;
-    if (game->target_elapsed_time_millis > 0)
+    if (CURRENT_GAME->target_elapsed_time_millis > 0)
     {
-        TARGET_ELAPSED_TIME_TICKS = ms_to_ticks(game->target_elapsed_time_millis, game->clocks_per_second);
+        TARGET_ELAPSED_TIME_TICKS = ms_to_ticks(CURRENT_GAME->target_elapsed_time_millis, CURRENT_GAME->clocks_per_second);
     }
 
-    if (game->max_elapsed_time_millis > 0)
+    if (CURRENT_GAME->max_elapsed_time_millis > 0)
     {
-        MAX_ELAPSED_TIME_TICKS = ms_to_ticks(game->max_elapsed_time_millis, game->clocks_per_second);
+        MAX_ELAPSED_TIME_TICKS = ms_to_ticks(CURRENT_GAME->max_elapsed_time_millis, CURRENT_GAME->clocks_per_second);
     }
-    SHARED_STATE        = shared_state;
+    SHARED_STATE        = shared_state_ptr;
     GAME_IS_INITIALIZED = true;
     return 1;
 }

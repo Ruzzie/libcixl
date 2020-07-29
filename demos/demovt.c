@@ -70,16 +70,11 @@ inline void set_fg_color(const int color)
     if (CURR_FG_COLOR != color)
     {
         //printf("\033[38;5;%im", color);//8 bit fg color sgr
-        if (color > 47)
-        {
-            //bright color: try with bold decoration, for older systems
-            printf("\033[%i;1m", FG_COLOR_MAP[color - 60]); // 4 bit color sgr
-        }
+        if(color > 7)
+            printf("\033[1;%im", (FG_COLOR_MAP[color]) - 60); // 4 bit color sgr
+            //printf_s("Z[%i;1m", (FG_COLOR_MAP[color]) - 60); // 4 bit color sgr
         else
-        {
-            //dim color
-            printf("\033[%i;2m", FG_COLOR_MAP[color]); // 4 bit color sgr
-        }
+            printf("\033[0;%im", FG_COLOR_MAP[color]);
 
         CURR_FG_COLOR = color;
     }
@@ -87,21 +82,21 @@ inline void set_fg_color(const int color)
 
 inline void set_bg_color(const int color)
 {
-    if (CURR_BG_COLOR != color)
-    {
-        if (color > 47)
+   /* if (CURR_BG_COLOR != color)
+    {*/
+        if (color > 7)
         {
-            //bright color: try with bold decoration, for older systems
-            printf("\033[%i;1m", BG_COLOR_MAP[color] - 60); // 4 bit color sgr
+            //bright color: try with bold style_opts, for older systems
+            printf("\033[%im", (BG_COLOR_MAP[color]) - 60); // 4 bit color sgr
         }
         else
         {
-            printf("\033[%i;2m", BG_COLOR_MAP[color]); // 4 bit color sgr
+            printf("\033[%im", BG_COLOR_MAP[color]); // 4 bit color sgr
         }
         //printf("\033[48;5;%im", color);//8 bit bg color sgr
 
         CURR_BG_COLOR = color;
-    }
+    /*}*/
 }
 
 void draw_cixl(const int start_x, const int start_y, const CIXL_Cxl cxl)
@@ -144,7 +139,7 @@ void update(const CIXL_GameTime *game_time, void *shared_state)
 
     if (INPUT_BUFFER_SIZE != 0)
     {
-        cixl_puts_hor(0, 12, INPUT_BUFFER, CIXL_Color_Magenta, CIXL_Color_Green, 0);
+        cixl_put_horiz_s(0, 12, INPUT_BUFFER, CIXL_Color_Magenta, CIXL_Color_Green, 0);
         INPUT_BUFFER_SIZE = 0;
         if (INPUT_BUFFER[0] == 'x')
         {
@@ -156,7 +151,7 @@ void update(const CIXL_GameTime *game_time, void *shared_state)
             (game_time->is_running_slowly), game_time->elapsed_game_time_ms, game_time->total_game_time_ticks,
             game_time->frame_lag, game_time->step_count);
 
-    cixl_puts_hor(0, 0, STATS_PER_SECONDS_S, 0, CIXL_Color_Grey, 0);
+    cixl_put_horiz_s(0, 0, STATS_PER_SECONDS_S, 0, CIXL_Color_Grey, 0);
 }
 
 void draw(const CIXL_GameTime *game_time, void *shared_state)
@@ -171,7 +166,7 @@ int main(void)
 {
     char clock_info_s[48];
 
-    GAME = cixl_game_default();
+    GAME = cixl_game_create(CLOCKS_PER_SEC);
     #ifdef __DOS__
     //For now since custom interrupt timers are not (yet?) implemented, set dos to a target time rate of 18 fps
     GAME->is_fixed_time_step         = true;
@@ -180,12 +175,11 @@ int main(void)
     GAME->is_fixed_time_step         = true;
     GAME->target_elapsed_time_millis = 16;//60fps
     #endif
-    GAME->clocks_per_second       = CLOCKS_PER_SEC;
     GAME->max_elapsed_time_millis = 500;
 
     GAME->f_update_game = update;
     GAME->f_draw_game   = draw;
-    cixl_game_init(GAME, NULL);
+    cixl_game_init(NULL);
     cixl_init_render_device(&VT_RENDER_DEVICE);
 
     hide_cursor();
@@ -195,11 +189,11 @@ int main(void)
 
 
     cixl_put(0, 12, PLAYER);
-    cixl_puts_hor(0, 1, HEADER_S, CIXL_Color_White_Bright, CIXL_Color_Black, 0);
-    cixl_puts_hor(0, 2, INFO_LINE_S, CIXL_Color_White_Bright, CIXL_Color_Black, 0);
+    cixl_put_horiz_s(0, 1, HEADER_S, CIXL_Color_White_Bright, CIXL_Color_Black, 0);
+    cixl_put_horiz_s(0, 2, INFO_LINE_S, CIXL_Color_White_Bright, CIXL_Color_Black, 0);
 
     sprintf(clock_info_s, "cps: %lu beginclock:%lu", CLOCKS_PER_SEC, clock());
-    cixl_puts_hor(0, 3, clock_info_s, CIXL_Color_White_Bright, CIXL_Color_Black, 0);
+    cixl_put_horiz_s(0, 3, clock_info_s, CIXL_Color_White_Bright, CIXL_Color_Black, 0);
 
     {
         //Print color line
@@ -207,13 +201,13 @@ int main(void)
         int color_y;
         for (color_x = 0; color_x < 16; color_x++)
         {
-            for (color_y = 0; color_y < 16; color_y++)
+            for (color_y = 0; color_y < 8; color_y++)
             {
                 CIXL_Cxl *c = malloc(sizeof(CIXL_Cxl));
                 c->char_value = '#';
                 c->fg_color   = color_x;
-                c->bg_color   = 15 - color_y;
-                c->decoration = 0;
+                c->bg_color   = 7 - color_y;
+                c->style_opts = 0;
 
                 cixl_puti((TERM_WIDTH / 2) + color_x, color_y + 4, (int32_t *) c);
             }

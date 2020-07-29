@@ -57,10 +57,14 @@ CIXLLIB_API bool cixl_put(const int x, const int y, const CIXL_Cxl cxl);
 CIXLLIB_API bool cixl_puti(const int x, const int y, int32_t *cxl);
 
 CIXLLIB_API void
-cixl_puts_hor(const int start_x, const int y, const char *str, const CIXL_Color fg_color, const CIXL_Color bg_color,
-              const CIXL_StyleOpts decoration);
+cixl_put_horiz_s(const int start_x, const int y, const char *str, const CIXL_Color fg_color, const CIXL_Color bg_color,
+                 const CIXL_StyleOpts decoration);
 
 CIXLLIB_API CIXL_Cxl cixl_pick(const int x, const int y);
+
+CIXLLIB_API bool cixl_clear(const int x, const int y);
+
+CIXLLIB_API void cixl_clear_area(const int x, const int y, const int w, const int h);//todo: implement
 
 CIXLLIB_API void cixl_reset();
 

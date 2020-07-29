@@ -161,7 +161,7 @@ void draw_cixl_s(const int start_x, const int start_y, char *str, const unsigned
     fputs(str, stdout);
 }
 
-TEST_CASE("clear and render should result in 0 draw calls", "smoke test")
+TEST_CASE("reset and render should result in 0 draw calls", "smoke test")
 {
     //Arrange
     CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
@@ -176,6 +176,66 @@ TEST_CASE("clear and render should result in 0 draw calls", "smoke test")
     REQUIRE(draw_count == 0);
 }
 
+TEST_CASE("put and then clear should result empty cxl", "smoke test")
+{
+    //Arrange
+    CIXL_Cxl          b{'B', 0, 0, 0};
+    CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
+    cixl_init_render_device(&x);
+    cixl_reset();
+    REQUIRE(cixl_put(1, 1, b));
+
+    //Act
+    REQUIRE(cixl_clear(1, 1));
+
+    //Assert
+    CIXL_Cxl picked = cixl_pick(1, 1);
+    REQUIRE(picked.char_value == CXL_EMPTY.char_value);
+}
+
+TEST_CASE("when A is current put A then B then A should result in NOT DIRTY", "smoke test")
+{
+    //Arrange
+    CIXL_Cxl          a{'A', 0, 0, 0};
+    CIXL_Cxl          b{'B', 0, 0, 0};
+    CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
+    cixl_init_render_device(&x);
+    cixl_reset();
+    cixl_put(1, 1, a);
+    cixl_render();
+
+    //Act
+    REQUIRE(!cixl_put(1, 1, a));
+    REQUIRE(cixl_put(1, 1, b));
+    REQUIRE(cixl_put(1, 1, a));
+
+    //Assert
+    CIXL_Cxl picked = cixl_pick(1, 1);
+    CIXL_Cxl out_current;
+    CIXL_Cxl out_next;
+    int      is_dirty;
+
+    buffer_get_cixl_state(81, &out_current, &out_next, &is_dirty);
+    REQUIRE(picked.char_value == a.char_value);
+    REQUIRE(is_dirty == 0);
+}
+
+TEST_CASE("put and then clear should result in 0 draw calls", "smoke test")
+{
+    //Arrange
+    CIXL_Cxl          a{'B', 0, 0, 0};
+    CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
+    cixl_init_render_device(&x);
+    cixl_reset();
+    REQUIRE(cixl_put(1, 1, a));
+    REQUIRE(cixl_clear(1, 1));
+
+    //Act
+    int draw_count = cixl_render();
+
+    //Assert
+    REQUIRE(draw_count == 0);
+}
 
 TEST_CASE("first render ok", "smoke test")
 {
@@ -262,7 +322,7 @@ TEST_CASE("render calls draw_s for when writing with puts", "smoke test")
 
     //put a string block, this should result in one draw call when rendered
 
-    cixl_puts_hor(0, 1, "AAAAAAAAAA", 0, 0, 0);
+    cixl_put_horiz_s(0, 1, "AAAAAAAAAA", 0, 0, 0);
 
     //Act
     int draw_count = cixl_render();
@@ -294,12 +354,12 @@ TEST_CASE("game ticks_to_ms", "smoke test")
 TEST_CASE("game one tick fixed step should progress 16 ms", "smoke test")
 {
 
-    CIXL_Game *p_cixl_game = cixl_game_default();
+    CIXL_Game *p_cixl_game = cixl_game_create(CLOCKS_PER_SEC);
     REQUIRE(p_cixl_game->is_fixed_time_step);
     REQUIRE(p_cixl_game->clocks_per_second == CLOCKS_PER_SEC);
 
     bool    should_exit   = false;
-    REQUIRE(cixl_game_init(p_cixl_game, NULL) == 1);
+    REQUIRE(cixl_game_init(NULL) == 1);
     clock_t current_ticks = clock();
     REQUIRE(current_ticks > 0);
 
@@ -311,8 +371,6 @@ TEST_CASE("game one tick fixed step should progress 16 ms", "smoke test")
     REQUIRE(CURRENT_GAME_TIME.elapsed_game_time_ticks == 16);
     REQUIRE(CURRENT_GAME_TIME.elapsed_game_time_ms == 16);
     REQUIRE(CURRENT_GAME_TIME.total_game_time_ticks == 32);
-
-
 }
 
 #pragma clang diagnostic pop

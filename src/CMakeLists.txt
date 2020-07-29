@@ -7,6 +7,7 @@ set(LIBCIXL_SOURCES
         libcixl/console.c
         libcixl/cxl.c
         libcixl/game.c
+        libcixl/style_opts.c
         libcixl/libcixl.h )
 
 add_library(libcixl SHARED ${LIBCIXL_SOURCES})
