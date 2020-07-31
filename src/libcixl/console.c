@@ -9,7 +9,7 @@
 #endif
 #endif
 
-bool cxl_is_out_of_drawing_area(const int x, const int y, const int num_chars)
+inline bool cxl_is_out_of_drawing_area(const int x, const int y, const int num_chars)
 {
     if (x < 0 || ((x + num_chars) > TERM_WIDTH || (x + num_chars) < 0 || y >= TERM_HEIGHT || y < 0))
     {
@@ -21,7 +21,7 @@ bool cxl_is_out_of_drawing_area(const int x, const int y, const int num_chars)
     }
 }
 
-int cxl_index_for_xy(const int x, const int y)
+inline int cxl_index_for_xy(const int x, const int y)
 {
     /* https://stackoverflow.com/questions/8591762/ifdef-debug-with-cmake-independent-from-platform */
 #if !defined(NDEBUG)
@@ -51,17 +51,17 @@ static inline bool state_a_is_next(const CIXL_CxlState state)
 
 typedef CIXL_Cxl      FRAMEBUFFER[TERM_AREA];
 typedef CIXL_CxlState STATE_BUFFER[TERM_AREA];
-typedef struct DoubleFramebuffer
+typedef struct CIXL_DoubleFramebuffer
 {
     FRAMEBUFFER  buffer_a;
     FRAMEBUFFER  buffer_b;
     STATE_BUFFER state_buffer;
-}                     DoubleFramebuffer;
+}                     CIXL_DoubleFramebuffer;
 
 /*The main buffer*/
-static DoubleFramebuffer SCREEN_BUFFER;
+static CIXL_DoubleFramebuffer SCREEN_BUFFER;
 
-void buffer_swap_and_clear_is_dirty(const int index)
+inline void buffer_swap_and_clear_is_dirty(const int index)
 {
     static const uint8_t one = 1;
 
@@ -73,7 +73,7 @@ void buffer_swap_and_clear_is_dirty(const int index)
     }
 }
 
-void buffer_clear_is_dirty(const int index)
+inline void buffer_clear_is_dirty(const int index)
 {
     static const uint8_t one = 1;
 
@@ -117,7 +117,7 @@ bool buffer_put_current(const int index, const CIXL_Cxl cxl)
 
 bool SCREEN_BUFFER_IS_DIRTY          = false;
 
-bool buffer_put_next(const int index, const CIXL_Cxl cxl)
+inline bool buffer_put_next(const int index, const CIXL_Cxl cxl)
 {
     if (index >= TERM_AREA)
     {
@@ -163,7 +163,7 @@ static inline CIXL_Cxl buffer_pick_next_optimized(const int index)
     return (state_a_is_next(current_state) ? SCREEN_BUFFER.buffer_a : SCREEN_BUFFER.buffer_b)[index];
 }
 
-bool buffer_get_cixl_state(const int index, CIXL_Cxl *out_current, CIXL_Cxl *out_next, int *out_is_dirty)
+inline bool buffer_get_cixl_state(const int index, CIXL_Cxl *out_current, CIXL_Cxl *out_next, int *out_is_dirty)
 {
     if (index < TERM_AREA)
     {
@@ -215,7 +215,6 @@ static inline bool cxl_style_equals(const CIXL_Cxl *left, const CIXL_Cxl *right)
            left->style_opts == right->style_opts;
 }
 
-
 bool cixl_put(const int x, const int y, const CIXL_Cxl cxl)
 {
     if (cxl_is_out_of_drawing_area(x, y, 1) == true)
@@ -265,7 +264,6 @@ bool cixl_put(const int x, const int y, const CIXL_Cxl cxl)
         }
 
         return buffer_put_next(index, cxl);
-
     }
 }
 
@@ -274,7 +272,7 @@ bool cixl_puti(const int x, const int y, int32_t *cxl)
     return cixl_put(x, y, *cixl_unpack_cxl(cxl));
 }
 
-// internal secure strlen
+// secure strlen
 // \return The length of the string (excluding the terminating 0) limited by 'maxsize'
 /*
 static inline unsigned int c_strnlen_s(const char *str, size_t maxsize)
@@ -333,7 +331,18 @@ bool cixl_clear(const int x, const int y)
 
 void cixl_clear_area(const int x, const int y, const int w, const int h)
 {
+    int       tmp_x = x;
+    int       tmp_y;
+    const int max_x = x + w;
+    const int max_y = y + h;
 
+    for (; tmp_x <= max_x; ++tmp_x)
+    {
+        for (tmp_y = y; tmp_y <= max_y; ++tmp_y)
+        {
+            cixl_clear(tmp_x, tmp_y);
+        }
+    }
 }
 
 void cixl_reset()
@@ -379,8 +388,6 @@ render_flush_line_buffer(const int x, const int y, const CIXL_Cxl last_cxl, unsi
     if ((*line_buffer_size) > 1)
     {
         /* //TODO: check for unexpected size condition in calling method
-         if (*line_buffer_size > TERM_WIDTH)
-             return -1;
         */
         c_str_terminate(LINE_BUFFER, *line_buffer_size);
         RENDER_DEVICE.f_draw_cxl_s(x, y, &LINE_BUFFER[0], (*line_buffer_size), last_cxl.fg_color, last_cxl.bg_color,

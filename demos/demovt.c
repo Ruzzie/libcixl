@@ -10,6 +10,9 @@
 #include <string.h>
 #include <conio.h>
 #include <time.h>
+
+#define CIXL_GAME_STATE_TYPE int
+
 #include "../src/libcixl.h"
 
 int move_cursor(int x, int y)
@@ -130,7 +133,7 @@ CIXL_Game *GAME;
 
 char         STATS_PER_SECONDS_S[54];
 
-void update(const CIXL_GameTime *game_time, void *shared_state)
+void update(const CIXL_GameTime *game_time, int *shared_state)
 {
     while (_kbhit() && (INPUT_BUFFER_SIZE < DEMO_VT_MAX_INPUT_BUFFER_SIZE)) //check for keys in input buffer
     {
@@ -154,7 +157,7 @@ void update(const CIXL_GameTime *game_time, void *shared_state)
     cixl_put_horiz_s(0, 0, STATS_PER_SECONDS_S, 0, CIXL_Color_Grey, 0);
 }
 
-void draw(const CIXL_GameTime *game_time, void *shared_state)
+void draw(const CIXL_GameTime *game_time, int *shared_state)
 {
     if (cixl_render() > 0) //only flush when there is new data
     {

@@ -64,7 +64,7 @@ CIXLLIB_API CIXL_Cxl cixl_pick(const int x, const int y);
 
 CIXLLIB_API bool cixl_clear(const int x, const int y);
 
-CIXLLIB_API void cixl_clear_area(const int x, const int y, const int w, const int h);//todo: implement
+CIXLLIB_API void cixl_clear_area(const int x, const int y, const int w, const int h);
 
 CIXLLIB_API void cixl_reset();
 

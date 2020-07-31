@@ -193,6 +193,26 @@ TEST_CASE("put and then clear should result empty cxl", "smoke test")
     REQUIRE(picked.char_value == CXL_EMPTY.char_value);
 }
 
+TEST_CASE("put and then clear_area should result empty cxl", "smoke test")
+{
+    //Arrange
+    CIXL_Cxl          b{'B', 0, 0, 0};
+    CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
+    cixl_init_render_device(&x);
+    cixl_reset();
+    REQUIRE(cixl_put(1, 1, b));
+    REQUIRE(cixl_put(2, 2, b));
+
+    //Act
+    cixl_clear_area(1, 1, 1, 1);
+
+    //Assert
+    CIXL_Cxl picked = cixl_pick(1, 1);
+    REQUIRE(picked.char_value == CXL_EMPTY.char_value);
+    picked = cixl_pick(2, 2);
+    REQUIRE(picked.char_value == CXL_EMPTY.char_value);
+}
+
 TEST_CASE("when A is current put A then B then A should result in NOT DIRTY", "smoke test")
 {
     //Arrange

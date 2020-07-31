@@ -16,7 +16,7 @@ First things
 
 - setup structure libcixl [done]
 - colored cxl strings     [done]
-- game loop [done]
+- game loop               [done]
 - decorated cxl strings
 - format cxl strings api / vm / solution
 - simple efficient layers
