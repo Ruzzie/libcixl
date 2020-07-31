@@ -16,12 +16,14 @@ int cixl_game_exit()
 
 CIXL_Game INITIAL_GAME  = {true, 16, 500, CLOCKS_PER_SEC, cixl_game_exit, NULL, NULL};
 CIXL_Game *CURRENT_GAME = &INITIAL_GAME;
-#ifndef __cplusplus
-CIXL_GameTime CURRENT_GAME_TIME = {0, 0, 0, false, 0, 0, 0};
-#endif
-void *SHARED_STATE       = NULL;
-bool GAME_IS_INITIALIZED = false;
 
+#ifndef __cplusplus
+CIXL_GameTime CURRENT_GAME_TIME   = {0, 0, 0, false, 0, 0, 0};
+#endif
+
+/// Reference to the shared game state. This is passed through to the update and draw methods.
+CIXL_TYPED_GAME_STATE(CIXL_GAME_STATE_TYPE, SHARED_GAME_STATE_PTR) = NULL;
+bool          GAME_IS_INITIALIZED = false;
 
 clock_t PREVIOUS_TICKS                 = 0;
 clock_t ACCUMULATED_ELAPSED_TIME_TICKS = 0;
@@ -54,31 +56,37 @@ int cixl_game_init(void *shared_state_ptr)
 
     if (CURRENT_GAME->target_elapsed_time_millis > 0)
     {
-        TARGET_ELAPSED_TIME_TICKS = ms_to_ticks(CURRENT_GAME->target_elapsed_time_millis, CURRENT_GAME->clocks_per_second);
+        TARGET_ELAPSED_TIME_TICKS = ms_to_ticks(CURRENT_GAME->target_elapsed_time_millis,
+                                                CURRENT_GAME->clocks_per_second);
     }
 
     if (CURRENT_GAME->max_elapsed_time_millis > 0)
     {
         MAX_ELAPSED_TIME_TICKS = ms_to_ticks(CURRENT_GAME->max_elapsed_time_millis, CURRENT_GAME->clocks_per_second);
     }
-    SHARED_STATE        = shared_state_ptr;
-    GAME_IS_INITIALIZED = true;
+    SHARED_GAME_STATE_PTR = shared_state_ptr;
+    GAME_IS_INITIALIZED   = true;
     return 1;
 }
 
 static unsigned int FRAMES_COUNTER  = 0;
 static clock_t      FPS_TIMER_TICKS = 0;
 
-static void cixl_game_do_update(CIXL_GameTime *game_time, void *shared_state)
+static inline void fps_counter_update(CIXL_GameTime *game_time)
 {
     FPS_TIMER_TICKS += game_time->elapsed_game_time_ticks;
 
-    if (FPS_TIMER_TICKS > CURRENT_GAME->clocks_per_second)
+    if (FPS_TIMER_TICKS > CURRENT_GAME->clocks_per_second) // Reset after 1 second
     {
         game_time->current_fps = FRAMES_COUNTER;
         FRAMES_COUNTER = 0;
         FPS_TIMER_TICKS -= CURRENT_GAME->clocks_per_second;
     }
+}
+
+static void cixl_game_do_update(CIXL_GameTime *game_time, void *shared_state)
+{
+    fps_counter_update(game_time);
 
     if (CURRENT_GAME->f_update_game != NULL)
     {
@@ -104,7 +112,8 @@ int cixl_game_tick(CIXL_GameTime *game_time, void *shared_state, const bool *sho
     goto RetryTick;
     RetryTick:
     {
-        clock_t current_ticks = clock();
+        clock_t current_ticks = clock();//Current Ticks
+
         // Advance the accumulated elapsed time.
         ACCUMULATED_ELAPSED_TIME_TICKS += current_ticks - PREVIOUS_TICKS;
         PREVIOUS_TICKS        = current_ticks;
@@ -115,14 +124,14 @@ int cixl_game_tick(CIXL_GameTime *game_time, void *shared_state, const bool *sho
             // We may overshoot a bit. TODO: Tweak sleep time
             clock_t sleep_time = ticks_to_ms(TARGET_ELAPSED_TIME_TICKS - ACCUMULATED_ELAPSED_TIME_TICKS,
                                              CURRENT_GAME->clocks_per_second);
-            cixl_sleep_ms(sleep_time);
+            cixl_sleep_ms(cixl_max(1, sleep_time));
 
             // Keep looping until it's time to perform the next update
             goto RetryTick;
         }
     }
 
-    // Do not allow any update to take longer than our maximum.
+    // Do not allow any update to take longer than our maximum (MAX_ELAPSED_TIME_TICKS).
     if (ACCUMULATED_ELAPSED_TIME_TICKS > MAX_ELAPSED_TIME_TICKS)
     {
         ACCUMULATED_ELAPSED_TIME_TICKS = MAX_ELAPSED_TIME_TICKS;
@@ -140,7 +149,7 @@ int cixl_game_tick(CIXL_GameTime *game_time, void *shared_state, const bool *sho
         {
             game_time->total_game_time_ticks += TARGET_ELAPSED_TIME_TICKS;
             ACCUMULATED_ELAPSED_TIME_TICKS -= TARGET_ELAPSED_TIME_TICKS;
-            step_count++;
+            ++step_count;
 
             game_time->step_count = step_count;
             cixl_game_do_update(game_time, shared_state);
@@ -166,7 +175,7 @@ int cixl_game_tick(CIXL_GameTime *game_time, void *shared_state, const bool *sho
         //Every time we just do one update and one draw, then we are not running slowly, so decrease the lag
         if (step_count == 1 && UPDATE_FRAME_LAG > 0)
         {
-            UPDATE_FRAME_LAG--;
+            --UPDATE_FRAME_LAG;
         }
 
         // Draw needs to know the total elapsed time
@@ -202,13 +211,13 @@ int cixl_game_run()
         return -2;
     }
 
-    PREVIOUS_TICKS = clock();
+    PREVIOUS_TICKS = clock();//INITIALIZE TO CURRENT TIME;
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wfor-loop-analysis"
     while (!GAME_SHOULD_EXIT)
     {
-        cixl_game_tick(&CURRENT_GAME_TIME, SHARED_STATE, &GAME_SHOULD_EXIT);
+        cixl_game_tick(&CURRENT_GAME_TIME, SHARED_GAME_STATE_PTR, &GAME_SHOULD_EXIT);
     }
     return 1;
 #pragma clang diagnostic pop

@@ -175,7 +175,7 @@ int main(void)
     GAME->is_fixed_time_step         = true;
     GAME->target_elapsed_time_millis = 56;//18fps
     #else
-    GAME->is_fixed_time_step         = true;
+    GAME->is_fixed_time_step         = false;
     GAME->target_elapsed_time_millis = 16;//60fps
     #endif
     GAME->max_elapsed_time_millis = 500;
