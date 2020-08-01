@@ -10,20 +10,37 @@
 
 #include "cxl.h"
 #include "colors.h"
+#include "std/cixl_stdint.h"
 
-#define TERM_WIDTH 80
-#define TERM_HEIGHT 25
-#define TERM_AREA (TERM_WIDTH * TERM_HEIGHT)
+#ifndef CIXL_CON_WIDTH
+#define CIXL_CON_WIDTH 80
+#endif
+
+#ifndef CIXL_CON_HEIGHT
+#define CIXL_CON_HEIGHT 25
+#endif
 
 typedef struct CIXL_RenderDevice
 {
     void (*f_draw_cxl)(const int start_x, const int start_y, const CIXL_Cxl cixl);
 
-    void
-    (*f_draw_cxl_s)(const int start_x, const int start_y, char *str, const unsigned int size, const CIXL_Color fg_color,
-                    const CIXL_Color bg_color, const CIXL_StyleOpts decoration);
+    void (*f_draw_horiz_s)(const int start_x, const int start_y, char *str, const unsigned int size,
+                           const CIXL_Color fg_color, const CIXL_Color bg_color, const CIXL_StyleOpts decoration);
 } CIXL_RenderDevice;
 
+
+
+
+#define CIXL_BUFFERS_INIT(width, height)                      \
+typedef CIXL_Cxl      CIXL_FRAMEBUFFER[width * height];       \
+typedef CIXL_CxlState CIXL_STATE_BUFFER[width * height];      \
+typedef char          CIXL_LINE_BUFFER[width + 1];            \
+static const int CIXL_TERM_WIDTH  = width;                    \
+static const int CIXL_TERM_HEIGHT = height;                   \
+static const int CIXL_TERM_AREA   = width * height;           \
+
+
+// CIXL_BUFFERS_INIT(CIXL_CON_WIDTH, CIXL_CON_HEIGHT)
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,7 +67,12 @@ int cxl_index_for_xy(int x, int y);
 
 #endif
 
-CIXLLIB_API void cixl_init_render_device(CIXL_RenderDevice *device);
+/*! \brief initialized the screen-buffer to the proper size. If they are already initialized with the same size they will be reset.
+ * if the buffers were already initialized with a different size, the old buffers will be cleared and reallocated.
+ * */
+CIXLLIB_API bool cixl_init_screen(const int width, const int height, CIXL_RenderDevice *device);
+
+CIXLLIB_API void cixl_free_screen();
 
 CIXLLIB_API bool cixl_put(const int x, const int y, const CIXL_Cxl cxl);
 

@@ -23,6 +23,7 @@ CIXL_GameTime CURRENT_GAME_TIME   = {0, 0, 0, false, 0, 0, 0};
 
 /// Reference to the shared game state. This is passed through to the update and draw methods.
 CIXL_TYPED_GAME_STATE(CIXL_GAME_STATE_TYPE, SHARED_GAME_STATE_PTR) = NULL;
+
 bool          GAME_IS_INITIALIZED = false;
 
 clock_t PREVIOUS_TICKS                 = 0;

@@ -165,6 +165,9 @@ void draw(const CIXL_GameTime *game_time, int *shared_state)
     }
 }
 
+static const int SCREEN_WIDTH  = 80;
+static const int SCREEN_HEIGHT = 25;
+
 int main(void)
 {
     char clock_info_s[48];
@@ -182,8 +185,12 @@ int main(void)
 
     GAME->f_update_game = update;
     GAME->f_draw_game   = draw;
+
     cixl_game_init(NULL);
-    cixl_init_render_device(&VT_RENDER_DEVICE);
+
+
+
+    cixl_init_screen(SCREEN_WIDTH, SCREEN_HEIGHT, &VT_RENDER_DEVICE);
 
     hide_cursor();
     //set_video_mode();
@@ -212,7 +219,7 @@ int main(void)
                 c->bg_color   = 7 - color_y;
                 c->style_opts = 0;
 
-                cixl_puti((TERM_WIDTH / 2) + color_x, color_y + 4, (int32_t *) c);
+                cixl_puti((SCREEN_WIDTH / 2) + color_x, color_y + 4, (int32_t *) c);
             }
         }
     }
@@ -222,10 +229,13 @@ int main(void)
 
     cixl_game_run();//Run the gameloop
 
+    //Cleanup
+    cixl_free_screen();
+
     //printf("loop count: [%i]\r\n", total_loop_count);
     show_cursor();
     //reset_video_mode();
-    //Cleanup
+
     printf("\033[0m");
     fflush(stdout);
     return 1;

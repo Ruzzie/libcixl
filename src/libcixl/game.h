@@ -31,8 +31,9 @@ typedef struct CIXL_GameTime
 } CIXL_GameTime;
 
 
-#ifndef CIXL_GAME_STATE_TYPE
+
 /*! \brief when you want to use a typed game_state in the update and draw methods instead of a void* #define CIXL_GAME_STATE_TYPE your_type_name.*/
+#ifndef CIXL_GAME_STATE_TYPE
 #define CIXL_GAME_STATE_TYPE void
 #endif
 

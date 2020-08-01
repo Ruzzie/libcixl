@@ -1,4 +1,5 @@
 #include "std/cixl_stdint.h"
+#include "std/cixl_stdlib.h"
 #include "console.h"
 
 #ifndef NULL
@@ -9,9 +10,99 @@
 #endif
 #endif
 
+typedef uint8_t CIXL_CxlState;
+
+typedef CIXL_Cxl      *CIXL_FRAMEBUFFER;
+typedef CIXL_CxlState *CIXL_STATE_BUFFER;
+typedef char          *CIXL_LINE_BUFFER;
+
+typedef struct CIXL_DoubleFramebuffer
+{
+    CIXL_FRAMEBUFFER  buffer_a;
+    CIXL_FRAMEBUFFER  buffer_b;
+    CIXL_STATE_BUFFER state_buffer;
+}                     CIXL_DoubleFramebuffer;
+
+/*The main buffer*/
+static CIXL_DoubleFramebuffer SCREEN_BUFFER;
+
+static CIXL_RenderDevice *RENDER_DEVICE = NULL;
+static bool              INITIALIZED    = false;
+static CIXL_LINE_BUFFER  LINE_BUFFER;
+
+static int CIXL_TERM_WIDTH;
+static int CIXL_TERM_HEIGHT;
+static int CIXL_TERM_AREA;
+
+static void free_buffers()
+{
+    cixl_mem_free(LINE_BUFFER);
+    cixl_mem_free(SCREEN_BUFFER.buffer_a);
+    cixl_mem_free(SCREEN_BUFFER.buffer_b);
+    cixl_mem_free(SCREEN_BUFFER.state_buffer);
+}
+
+static void allocate_buffers(size_t term_area, size_t term_width)
+{
+    LINE_BUFFER = cixl_mem_alloc(term_width, sizeof(char));
+    SCREEN_BUFFER.buffer_a     = cixl_mem_alloc(term_area, sizeof(CIXL_Cxl));
+    SCREEN_BUFFER.buffer_b     = cixl_mem_alloc(term_area, sizeof(CIXL_Cxl));
+    SCREEN_BUFFER.state_buffer = cixl_mem_alloc(term_area, sizeof(CIXL_CxlState));
+}
+
+bool cixl_init_screen(const int width, const int height, CIXL_RenderDevice *device)
+{
+    if (width <= 1 || height <= 1)
+    {
+        return false;
+    }
+
+    if (device != NULL)
+    {
+        RENDER_DEVICE = device;
+    }
+    else
+    {
+        return false;
+    }
+    
+    if (INITIALIZED)
+    {
+        if (width == CIXL_TERM_WIDTH && height == CIXL_TERM_HEIGHT)
+        {
+            //Already initialized with same size
+            //Reset
+            cixl_reset();
+            return true;
+        }
+        else
+        {
+            free_buffers();
+        }
+    }
+
+    CIXL_TERM_WIDTH  = width;
+    CIXL_TERM_HEIGHT = height;
+    CIXL_TERM_AREA   = width * height;
+
+    allocate_buffers(width * height, width);
+    INITIALIZED = true;
+    return true;
+}
+
+void cixl_free_screen()
+{
+    if (INITIALIZED)
+    {
+        free_buffers();
+        RENDER_DEVICE = NULL;
+        INITIALIZED   = false;
+    }
+}
+
 inline bool cxl_is_out_of_drawing_area(const int x, const int y, const int num_chars)
 {
-    if (x < 0 || ((x + num_chars) > TERM_WIDTH || (x + num_chars) < 0 || y >= TERM_HEIGHT || y < 0))
+    if (x < 0 || ((x + num_chars) > CIXL_TERM_WIDTH || (x + num_chars) < 0 || y >= CIXL_TERM_HEIGHT || y < 0))
     {
         return true;
     }
@@ -25,15 +116,13 @@ inline int cxl_index_for_xy(const int x, const int y)
 {
     /* https://stackoverflow.com/questions/8591762/ifdef-debug-with-cmake-independent-from-platform */
 #if !defined(NDEBUG)
-    if (x >= TERM_WIDTH)
+    if (x >= CIXL_TERM_WIDTH)
     {
         return -1;
     }
 #endif
-    return (TERM_WIDTH * y) + x;
+    return (CIXL_TERM_WIDTH * y) + x;
 }
-
-typedef uint8_t CIXL_CxlState;
 
 static const uint8_t STATE_IS_DIRTY_FLAG  = 0x0002;
 static const uint8_t STATE_A_IS_NEXT      = 0x0000;
@@ -49,23 +138,12 @@ static inline bool state_a_is_next(const CIXL_CxlState state)
     return (bool) (state & STATE_FIRST_BIT_MASK) == STATE_A_IS_NEXT;
 }
 
-typedef CIXL_Cxl      FRAMEBUFFER[TERM_AREA];
-typedef CIXL_CxlState STATE_BUFFER[TERM_AREA];
-typedef struct CIXL_DoubleFramebuffer
-{
-    FRAMEBUFFER  buffer_a;
-    FRAMEBUFFER  buffer_b;
-    STATE_BUFFER state_buffer;
-}                     CIXL_DoubleFramebuffer;
-
-/*The main buffer*/
-static CIXL_DoubleFramebuffer SCREEN_BUFFER;
 
 inline void buffer_swap_and_clear_is_dirty(const int index)
 {
     static const uint8_t one = 1;
 
-    if (index < TERM_AREA)
+    if (index < CIXL_TERM_AREA)
     {
         CIXL_CxlState *state = &SCREEN_BUFFER.state_buffer[index];
         *state ^= one; /* Swap current <-> next, flip first bit*/
@@ -83,7 +161,7 @@ inline void buffer_clear_is_dirty(const int index)
 
 CIXL_Cxl buffer_pick_current(const int index)
 {
-    if (index < TERM_AREA)
+    if (index < CIXL_TERM_AREA)
     {
         CIXL_CxlState state = SCREEN_BUFFER.state_buffer[index];
         return (state_a_is_next(state) ? SCREEN_BUFFER.buffer_b : SCREEN_BUFFER.buffer_a)[index];
@@ -96,7 +174,7 @@ CIXL_Cxl buffer_pick_current(const int index)
 
 bool buffer_put_current(const int index, const CIXL_Cxl cxl)
 {
-    if (index < TERM_AREA)
+    if (index < CIXL_TERM_AREA)
     {
         CIXL_CxlState current_state = SCREEN_BUFFER.state_buffer[index];
         if (state_a_is_next(current_state))
@@ -115,11 +193,11 @@ bool buffer_put_current(const int index, const CIXL_Cxl cxl)
     }
 }
 
-bool SCREEN_BUFFER_IS_DIRTY          = false;
+bool SCREEN_BUFFER_IS_DIRTY = false;
 
 inline bool buffer_put_next(const int index, const CIXL_Cxl cxl)
 {
-    if (index >= TERM_AREA)
+    if (index >= CIXL_TERM_AREA)
     {
         return false;
     }
@@ -140,7 +218,7 @@ inline bool buffer_put_next(const int index, const CIXL_Cxl cxl)
  * */
 CIXL_Cxl buffer_pick_next(const int index, int *out_is_dirty)
 {
-    if (index < TERM_AREA)
+    if (index < CIXL_TERM_AREA)
     {
         CIXL_CxlState current_state = SCREEN_BUFFER.state_buffer[index];
 
@@ -165,7 +243,7 @@ static inline CIXL_Cxl buffer_pick_next_optimized(const int index)
 
 inline bool buffer_get_cixl_state(const int index, CIXL_Cxl *out_current, CIXL_Cxl *out_next, int *out_is_dirty)
 {
-    if (index < TERM_AREA)
+    if (index < CIXL_TERM_AREA)
     {
         CIXL_CxlState current_state = SCREEN_BUFFER.state_buffer[index];
         if (state_a_is_next(current_state))
@@ -250,7 +328,7 @@ bool cixl_put(const int x, const int y, const CIXL_Cxl cxl)
             if (cxl_equals(&cxl, &current_cxl))
             {
                 /*
-                  For example: draw 'a', draw 'b' render, draw 'a', draw 'b', render
+                  For example: draw 'a', draw 'b' render, draw 'a', render
                    that should not result is redraws, since 'b' was the end result before each render cycle*/
                 buffer_clear_is_dirty(index);
             }
@@ -288,7 +366,7 @@ cixl_put_horiz_s(const int start_x, const int y, const char *str, const CIXL_Col
                  const CIXL_StyleOpts decoration)
 {
     int        x       = start_x;
-    unsigned   maxsize = TERM_WIDTH;
+    unsigned   maxsize = CIXL_TERM_WIDTH;
     const char *s;
 
     //safe strlen and and copy combined
@@ -348,7 +426,7 @@ void cixl_clear_area(const int x, const int y, const int w, const int h)
 void cixl_reset()
 {
     int i = 0;
-    while (i < TERM_AREA)
+    while (i < CIXL_TERM_AREA)
     {
         SCREEN_BUFFER.state_buffer[i] = 0;
         SCREEN_BUFFER.buffer_a[i]     = CXL_EMPTY;
@@ -362,25 +440,15 @@ static inline void c_str_terminate(char *src, const unsigned int size)
     src[size] = '\0';
 }
 
-static CIXL_RenderDevice RENDER_DEVICE;
-static bool              INITIALIZED = false;
-static char              LINE_BUFFER[TERM_WIDTH + 1];
 
-void cixl_init_render_device(CIXL_RenderDevice *device)
-{
-    RENDER_DEVICE = *device;
-    INITIALIZED   = true;
-}
-
-static inline int
-render_flush_line_buffer(const int x, const int y, const CIXL_Cxl last_cxl, unsigned int *line_buffer_size)
+static inline int render_flush_line_buffer(const int x, const int y, const CIXL_Cxl last_cxl, int *line_buffer_size)
 {
     int draw_call_count = 0;
 
     //check the line buffer and Draw a single cxl, or a str
     if ((*line_buffer_size) == 1)
     {
-        RENDER_DEVICE.f_draw_cxl(x, y, last_cxl);
+        RENDER_DEVICE->f_draw_cxl(x, y, last_cxl);
         (*line_buffer_size) = 0;
         return ++draw_call_count;
     }
@@ -390,8 +458,8 @@ render_flush_line_buffer(const int x, const int y, const CIXL_Cxl last_cxl, unsi
         /* //TODO: check for unexpected size condition in calling method
         */
         c_str_terminate(LINE_BUFFER, *line_buffer_size);
-        RENDER_DEVICE.f_draw_cxl_s(x, y, &LINE_BUFFER[0], (*line_buffer_size), last_cxl.fg_color, last_cxl.bg_color,
-                                   last_cxl.style_opts);
+        RENDER_DEVICE->f_draw_horiz_s(x, y, &LINE_BUFFER[0], (*line_buffer_size), last_cxl.fg_color, last_cxl.bg_color,
+                                      last_cxl.style_opts);
         (*line_buffer_size) = 0;
         return ++draw_call_count;
     }
@@ -416,16 +484,16 @@ int cixl_render()
         int y               = -1;
         int x;
 
-        int          prev_written_idx = -2;
-        unsigned int line_buffer_size = 0;
-        int          draw_x           = 0;
-        int          draw_y           = 0;
+        int prev_written_idx = -2;
+        int line_buffer_size = 0;
+        int draw_x           = 0;
+        int draw_y           = 0;
 
         CIXL_Cxl last_cxl = CXL_EMPTY;
 
-        while (i < TERM_AREA)
+        while (i < CIXL_TERM_AREA)
         {
-            x = i % TERM_WIDTH;
+            x = i % CIXL_TERM_WIDTH;
             if (x == 0)
             {
                 ++y;
@@ -435,8 +503,8 @@ int cixl_render()
 
                 bool continuation_on_same_line_has_ended = prev_written_idx != i - 1 && i > 0;
 
-                if (continuation_on_same_line_has_ended ||
-                    line_buffer_size == TERM_WIDTH) //not at start:check if continuation on same line has stopped,or EOL
+                if (continuation_on_same_line_has_ended || line_buffer_size ==
+                                                           CIXL_TERM_WIDTH) //not at start:check if continuation on same line has stopped,or EOL
                 {
                     draw_call_count += render_flush_line_buffer(draw_x, draw_y, last_cxl, &line_buffer_size);
                 }
