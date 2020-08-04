@@ -4,7 +4,7 @@
 #include "std/cixl_math.h"
 #include "game.h"
 
-#include "console.h"
+#include "screen_buffer.h"
 
 bool GAME_SHOULD_EXIT = false;
 

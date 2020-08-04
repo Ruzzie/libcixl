@@ -345,7 +345,7 @@ TEST_CASE("render calls draw_s for when writing with puts", "smoke test")
 
     //put a string block, this should result in one draw call when rendered
 
-    cixl_put_horiz_s(0, 1, "AAAAAAAAAA", 0, 0, 0);
+    cixl_print(0, 1, "AAAAAAAAAA", 0, 0, 0);
 
     //Act
     int draw_count = cixl_render();

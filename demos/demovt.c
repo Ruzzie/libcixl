@@ -142,7 +142,7 @@ void update(const CIXL_GameTime *game_time, int *shared_state)
 
     if (INPUT_BUFFER_SIZE != 0)
     {
-        cixl_put_horiz_s(0, 12, INPUT_BUFFER, CIXL_Color_Magenta, CIXL_Color_Green, 0);
+        cixl_print(0, 12, INPUT_BUFFER, CIXL_Color_Magenta, CIXL_Color_Green, 0);
         INPUT_BUFFER_SIZE = 0;
         if (INPUT_BUFFER[0] == 'x')
         {
@@ -154,7 +154,7 @@ void update(const CIXL_GameTime *game_time, int *shared_state)
             (game_time->is_running_slowly), game_time->elapsed_game_time_ms, game_time->total_game_time_ticks,
             game_time->frame_lag, game_time->step_count);
 
-    cixl_put_horiz_s(0, 0, STATS_PER_SECONDS_S, 0, CIXL_Color_Grey, 0);
+    cixl_print(0, 0, STATS_PER_SECONDS_S, 0, CIXL_Color_Grey, 0);
 }
 
 void draw(const CIXL_GameTime *game_time, int *shared_state)
@@ -188,8 +188,6 @@ int main(void)
 
     cixl_game_init(NULL);
 
-
-
     cixl_init_screen(SCREEN_WIDTH, SCREEN_HEIGHT, &VT_RENDER_DEVICE);
 
     hide_cursor();
@@ -199,14 +197,14 @@ int main(void)
 
 
     cixl_put(0, 12, PLAYER);
-    cixl_put_horiz_s(0, 1, HEADER_S, CIXL_Color_White_Bright, CIXL_Color_Black, 0);
-    cixl_put_horiz_s(0, 2, INFO_LINE_S, CIXL_Color_White_Bright, CIXL_Color_Black, 0);
+    cixl_print(0, 1, HEADER_S, CIXL_Color_White_Bright, CIXL_Color_Black, 0);
+    cixl_print(0, 2, INFO_LINE_S, CIXL_Color_White_Bright, CIXL_Color_Black, 0);
 
     sprintf(clock_info_s, "cps: %lu beginclock:%lu", CLOCKS_PER_SEC, clock());
-    cixl_put_horiz_s(0, 3, clock_info_s, CIXL_Color_White_Bright, CIXL_Color_Black, 0);
+    cixl_print(0, 3, clock_info_s, CIXL_Color_White_Bright, CIXL_Color_Black, 0);
 
     {
-        //Print color line
+        //Print color block
         int color_x;
         int color_y;
         for (color_x = 0; color_x < 16; color_x++)
@@ -226,6 +224,18 @@ int main(void)
 
     cixl_render();   // first render
     fflush(stdout);  // flush output after first render
+
+/*    cixl_layered layered = cixl_layered_init(screen);
+
+    CIXL_Cxl_L cxl_layered;
+    cixl_put(2,2, cxl_layered);
+
+    cixl_put(2,2, LAYER_BG, PLAYER);
+    cixl_print(2,2, LAYER_BG, PLAYER);
+
+
+    cixl_layer(0)
+    cixl_put(2,2, PLAYER)*/
 
     cixl_game_run();//Run the gameloop
 

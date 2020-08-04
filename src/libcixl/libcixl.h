@@ -8,7 +8,7 @@
 #include "colors.h"
 #include "style_opts.h"
 #include "cxl.h"
-#include "console.h"
+#include "screen_buffer.h"
 #include "game.h"
 
 #endif //LIBCIXL_LIBCIXL_H

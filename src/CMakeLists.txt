@@ -4,7 +4,7 @@ set(CMAKE_C_STANDARD 90)
 set(LIBCIXL_SOURCES
         libcixl.h
         libcixl/colors.c
-        libcixl/console.c
+        libcixl/screen_buffer.c
         libcixl/cxl.c
         libcixl/game.c
         libcixl/style_opts.c
