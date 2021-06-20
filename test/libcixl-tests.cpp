@@ -16,6 +16,7 @@
 
 int move_cursor(int x, int y, FILE *output)
 {
+    return 1;
     return fprintf(output, "\033[%i;%iH", x, y);
 }
 
@@ -32,7 +33,7 @@ void draw_cixl(const int start_x, const int start_y, const CIXL_Cxl cixl)
     LAST_CIXL_CALLED    = cixl;
 
     move_cursor(start_x, start_y, stdout);
-    fputc(cixl.char_value, stdout);
+    //fputc(cixl.char_value, stdout);
 }
 
 void draw_cixl_s(const int start_x, const int start_y, char *str, const unsigned int size, const CIXL_Color fg_color,
@@ -43,10 +44,22 @@ void draw_cixl_s(const int start_x, const int start_y, char *str, const unsigned
     LAST_STR_CALLED     = str;
 
     move_cursor(start_x, start_y, stdout);
-    fputs(str, stdout);
+    //fputs(str, stdout);
 }
 
 CIXL_RenderDevice X{draw_cixl, draw_cixl_s};
+
+/*
+TEST_CASE("Size tests CIXL_Cxl", "should be valid")
+{
+    CIXL_Cxl a{65, 0, 0, 0};
+
+
+    printf_s("cxl %zi, cxl bitfields %zi \n", sizeof(CIXL_Cxl), sizeof (CIXL_PackedCxl));
+    printf_s("cxl [96] %zi, cxl [96] bitfields %zi", sizeof(CIXL_TEST_NOTPACKED), sizeof (CIXL_TEST_PACKED));
+}
+*/
+
 
 TEST_CASE("Pack CIXL_Cxl", "should be valid")
 {
@@ -55,21 +68,37 @@ TEST_CASE("Pack CIXL_Cxl", "should be valid")
     REQUIRE(cixl_pack_cxl(&a) == 65);
 }
 
+TEST_CASE("Pack CIXL_Cxl all attrs", "should be valid")
+{
+    CIXL_Cxl a{65, 3, 5, 4};
+
+    //0x04_5_3_41
+    REQUIRE(cixl_pack_cxl(&a) == 0x45341);
+}
+
 TEST_CASE("Unpack CIXL_Cxl", "should be valid")
 {
-    CIXL_Cxl a{65, 0, 0, 0};
-    int      int_value = cixl_pack_cxl(&a);
-    int      *int_ptr  = &int_value;
+    CIXL_Cxl a{65, 3, 5, 4};
+    int32_t  int_value = cixl_pack_cxl(&a);
+    REQUIRE(int_value == 0x45341);
+    //int32_t  *int_ptr  = &int_value;
+    CIXL_Cxl unpacked_cxl ={};
 
-    CIXL_Cxl *unpacked_cxl          = cixl_unpack_cxl(int_ptr);
-    int      unpacked_cxl_int_value = cixl_pack_cxl(unpacked_cxl);
+    cixl_unpack_cxl(&int_value, &unpacked_cxl);
 
-    REQUIRE(65 == unpacked_cxl_int_value);
+    /*REQUIRE(unpacked_cxl.char_value == 65);
+    REQUIRE(unpacked_cxl.fg_color == 3);
+    REQUIRE(unpacked_cxl.bg_color == 5);
+    REQUIRE(unpacked_cxl.style_opts == 4);*/
+
+    int unpacked_cxl_int_value = cixl_pack_cxl(&unpacked_cxl);
+
+    REQUIRE(0x45341 == unpacked_cxl_int_value);
 }
 
 TEST_CASE("cixl_put and cixl_pick", "should be valid")
 {
-    cixl_init_screen(10, 10, &X);
+    cixl_init_screen_buffer(10, 10, &X);
 
     CIXL_Cxl a{65, 0, 0, 0};
     REQUIRE(cixl_put(1, 1, a));
@@ -88,36 +117,36 @@ TEST_CASE("cxl_is_out_of_drawing_area", "should be valid")
 
 TEST_CASE("is out of drawing area", "should be valid")
 {
-    cixl_init_screen(80, 25, &X);
+    cixl_init_screen_buffer(80, 25, &X);
     REQUIRE(cxl_is_out_of_drawing_area(500, 20, 1));
 }
 
 
-TEST_CASE("buffer_put_next buffer_pick_next", "should be the same and dirty")
+TEST_CASE("screen_buffer_put_next screen_buffer_pick_next", "should be the same and dirty")
 {
     //Arrange
     CIXL_Cxl a{65, 0, 0, 0};
     int      is_dirty = 0;
-    cixl_init_screen(80, 25, &X);
+    cixl_init_screen_buffer(80, 25, &X);
 
     //Act
-    REQUIRE(buffer_put_next(1, a));
-    CIXL_Cxl b        = buffer_pick_next(1, &is_dirty);
+    REQUIRE(screen_buffer_put_next(1, a));
+    CIXL_Cxl b        = screen_buffer_pick_next(1, &is_dirty);
 
     //Assert
     REQUIRE(b.char_value == a.char_value);
     REQUIRE(is_dirty == 1);
 }
 
-TEST_CASE("buffer_put_current buffer_pick_current", "should be the same")
+TEST_CASE("screen_buffer_put_current screen_buffer_pick_current", "should be the same")
 {
     //Arrange
     CIXL_Cxl a{65, 0, 0, 0};
-    cixl_init_screen(80, 25, &X);
+    cixl_init_screen_buffer(80, 25, &X);
 
     //Act
-    REQUIRE(buffer_put_current(1, a));
-    CIXL_Cxl b = buffer_pick_current(1);
+    REQUIRE(screen_buffer_put_current(1, a));
+    CIXL_Cxl b = screen_buffer_pick_current(1);
 
     //Assert
     REQUIRE(b.char_value == 65);
@@ -128,17 +157,17 @@ TEST_CASE("buffer_get_state", "should be the same")
     //Arrange
     CIXL_Cxl a{65, 0, 0, 0};
     CIXL_Cxl b{66, 0, 0, 0};
-    REQUIRE(cixl_init_screen(80, 25, &X));
+    REQUIRE(cixl_init_screen_buffer(80, 25, &X));
 
-    REQUIRE(buffer_put_current(1, a));
-    REQUIRE(buffer_put_next(1, b));
+    REQUIRE(screen_buffer_put_current(1, a));
+    REQUIRE(screen_buffer_put_next(1, b));
 
     CIXL_Cxl out_current;
     CIXL_Cxl out_next;
     int      is_dirty = 0;
 
     //Act
-    REQUIRE(buffer_get_cixl_state(1, &out_current, &out_next, &is_dirty));
+    REQUIRE(screen_buffer_get_cixl_state(1, &out_current, &out_next, &is_dirty));
 
     //Assert
     REQUIRE(a.char_value == out_current.char_value);
@@ -147,24 +176,24 @@ TEST_CASE("buffer_get_state", "should be the same")
     REQUIRE(is_dirty == 1);
 }
 
-TEST_CASE("buffer_swap_and_clear_is_dirty", "smoke test")
+TEST_CASE("screen_buffer_swap_and_clear_is_dirty", "smoke test")
 {
     //Arrange
     CIXL_Cxl a{65, 0, 0, 0};
     int      is_dirty = 0;
-    cixl_init_screen(80, 25, &X);
+    cixl_init_screen_buffer(80, 25, &X);
 
-    REQUIRE(buffer_put_current(1, CXL_EMPTY));
-    REQUIRE(buffer_put_next(1, a));
-    buffer_pick_next(1, &is_dirty);
+    REQUIRE(screen_buffer_put_current(1, CXL_EMPTY));
+    REQUIRE(screen_buffer_put_next(1, a));
+    screen_buffer_pick_next(1, &is_dirty);
     REQUIRE(is_dirty == 1);
 
     //Act
-    buffer_swap_and_clear_is_dirty(1);
+    screen_buffer_swap_and_clear_is_dirty(1);
 
     //Assert
     //Next should now be swapped with an empty CIXL_Cxl
-    CIXL_Cxl c = buffer_pick_next(1, &is_dirty);
+    CIXL_Cxl c = screen_buffer_pick_next(1, &is_dirty);
     REQUIRE(is_dirty == 0);
     REQUIRE(c.char_value == 0);
 }
@@ -173,7 +202,7 @@ TEST_CASE("buffer_swap_and_clear_is_dirty", "smoke test")
 TEST_CASE("reset and render should result in 0 draw calls", "smoke test")
 {
     //Arrange
-    cixl_init_screen(80, 25, &X);
+    cixl_init_screen_buffer(80, 25, &X);
 
     cixl_render();
 
@@ -189,7 +218,7 @@ TEST_CASE("put and then clear should result empty cxl", "smoke test")
     //Arrange
     CIXL_Cxl          b{'B', 0, 0, 0};
     CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
-    cixl_init_screen(80, 25, &x);
+    cixl_init_screen_buffer(80, 25, &x);
 
     REQUIRE(cixl_put(1, 1, b));
 
@@ -206,7 +235,7 @@ TEST_CASE("put and then clear_area should result empty cxl", "smoke test")
     //Arrange
     CIXL_Cxl          b{'B', 0, 0, 0};
     CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
-    cixl_init_screen(80, 25, &x);
+    cixl_init_screen_buffer(80, 25, &x);
 
     REQUIRE(cixl_put(1, 1, b));
     REQUIRE(cixl_put(2, 2, b));
@@ -227,7 +256,7 @@ TEST_CASE("when A is current put A then B then A should result in NOT DIRTY", "s
     CIXL_Cxl          a{'A', 0, 0, 0};
     CIXL_Cxl          b{'B', 0, 0, 0};
     CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
-    cixl_init_screen(80, 25, &x);
+    cixl_init_screen_buffer(80, 25, &x);
 
     cixl_put(1, 1, a);
     cixl_render();
@@ -243,7 +272,7 @@ TEST_CASE("when A is current put A then B then A should result in NOT DIRTY", "s
     CIXL_Cxl out_next;
     int      is_dirty;
 
-    buffer_get_cixl_state(81, &out_current, &out_next, &is_dirty);
+    screen_buffer_get_cixl_state(81, &out_current, &out_next, &is_dirty);
     REQUIRE(picked.char_value == a.char_value);
     REQUIRE(is_dirty == 0);
 }
@@ -253,7 +282,7 @@ TEST_CASE("put and then clear should result in 0 draw calls", "smoke test")
     //Arrange
     CIXL_Cxl          a{'B', 0, 0, 0};
     CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
-    cixl_init_screen(80, 25, &x);
+    cixl_init_screen_buffer(80, 25, &x);
 
     REQUIRE(cixl_put(1, 1, a));
     REQUIRE(cixl_clear(1, 1));
@@ -271,7 +300,7 @@ TEST_CASE("first render ok", "smoke test")
     CIXL_Cxl a{'A', 0, 0, 0};
 
     CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
-    cixl_init_screen(80, 25, &x);
+    cixl_init_screen_buffer(80, 25, &x);
 
     REQUIRE(cixl_put(0, 1, a));
 
@@ -288,7 +317,7 @@ TEST_CASE("write line buffer second render ok", "smoke test")
     CIXL_Cxl          a{'A', 0, 0, 0};
     CIXL_Cxl          b{'B', 0, 0, 0};
     CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
-    cixl_init_screen(80, 25, &x);
+    cixl_init_screen_buffer(80, 25, &x);
 
     cixl_render();
 
@@ -312,7 +341,7 @@ TEST_CASE("render calls draw_s for same cixel styles on same line..", "smoke tes
     CIXL_Cxl          a{'A', 0, 0, 0};
     CIXL_Cxl          b{'B', CIXL_Color_Green, 0, 0};
     CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
-    cixl_init_screen(80, 25, &x);
+    cixl_init_screen_buffer(80, 25, &x);
 
 
     //put a string block, this should result in one draw call when rendered
@@ -341,7 +370,7 @@ TEST_CASE("render calls draw_s for when writing with puts", "smoke test")
 {
     //Arrange
     CIXL_RenderDevice x{draw_cixl, draw_cixl_s};
-    cixl_init_screen(80, 25, &x);
+    cixl_init_screen_buffer(80, 25, &x);
 
     //put a string block, this should result in one draw call when rendered
 

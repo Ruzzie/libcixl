@@ -47,7 +47,7 @@ typedef struct CIXL_Game
     bool is_fixed_time_step;
 
     /*! \brief The target of time per tick to achieve, this is effectively a single frame update time in millis.
-     *  For example 60 frames per second would met 16.6667 ms.*/
+     *  For example 60 frames per second would be 16.6667 ms.*/
     /* 16.6667 ms, 60fps   */
     unsigned int target_elapsed_time_millis;
 

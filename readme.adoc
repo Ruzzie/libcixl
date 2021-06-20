@@ -19,7 +19,7 @@ First things
 - game loop               [done]
 - decorated cxl strings   [done]
 - format cxl strings api / vm / solution
-- simple efficient layers
+- simple efficient layers, (simple blitting)
 - Effects / Animations
 - pure c ansivt demo
 - netcore demo
@@ -37,9 +37,9 @@ First things
 == Goals
 - Fun constraints for simple game development!
 - Can create a game under 1.44MB
-- Runs on windows32/64 and Dos (16)
+- Runs on windows32/64 and Dos (16 or 32 whatever works)
     * Separate rendering: can be Terminal / Text / Conio / Console / SDL / Bearlib / SadConsole etc.
-    * Pure text only
+    * Pure text only minimal 16 colors
 - Keyboard input
 - SoundFx + Music
     * FM synthesis (emulation / real hw) to reduce size
@@ -49,8 +49,8 @@ First things
 - 256 colors (ish)
 - Framework can be used as library (multi-platform)
 - Can be used in other game frameworks
-- core libs don't use os dependent features (nostdlib)
-- reusable for mud, ascii / text games
+- core libs don't use os dependent features directly
+- reusable for ascii / text games
 
 === Needed stuff
 - Tiny Statemachine for state transitions

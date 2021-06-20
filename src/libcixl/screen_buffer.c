@@ -10,7 +10,27 @@
 #endif
 #endif
 
-typedef uint8_t CIXL_CxlState;
+//typedef uint8_t CIXL_CxlState;
+
+typedef struct CIXL_CxlState
+{
+    _Bool a_is_next: 1;
+    _Bool is_dirty: 1;
+} CIXL_CxlState;
+
+static const CIXL_CxlState EMPTY_STATE = {true, false};
+
+static inline _Bool state_is_dirty(const CIXL_CxlState state)
+{
+    return state.is_dirty;
+    //return (bool) (state & STATE_IS_DIRTY_FLAG) == STATE_IS_DIRTY_FLAG;
+}
+
+static inline _Bool state_a_is_next(const CIXL_CxlState state)
+{
+    return state.a_is_next;
+    //return (bool) (state & STATE_FIRST_BIT_MASK) == STATE_A_IS_NEXT;
+}
 
 typedef CIXL_Cxl      *CIXL_FRAME;
 typedef CIXL_CxlState *CIXL_STATE_BUFFER;
@@ -50,7 +70,7 @@ static void allocate_buffers(size_t term_area, size_t term_width)
     SCREEN_BUFFER.state_buffer = cixl_mem_alloc(term_area, sizeof(CIXL_CxlState));
 }
 
-bool cixl_init_screen(const int width, const int height, CIXL_RenderDevice *device)
+bool cixl_init_screen_buffer(const int width, const int height, CIXL_RenderDevice *device)
 {
     if (width <= 1 || height <= 1)
     {
@@ -90,7 +110,7 @@ bool cixl_init_screen(const int width, const int height, CIXL_RenderDevice *devi
     return true;
 }
 
-void cixl_free_screen()
+void cixl_free_screen_buffer()
 {
     if (INITIALIZED)
     {
@@ -124,39 +144,31 @@ inline int cxl_index_for_xy(const int x, const int y)
     return (CIXL_TERM_WIDTH * y) + x;
 }
 
-static const uint8_t STATE_IS_DIRTY_FLAG  = 0x0002;
-static const uint8_t STATE_A_IS_NEXT      = 0x0000;
-static const uint8_t STATE_FIRST_BIT_MASK = 0x0001;
 
-static inline bool state_is_dirty(const CIXL_CxlState state)
+inline void screen_buffer_swap_and_clear_is_dirty(const int index)
 {
-    return (bool) (state & STATE_IS_DIRTY_FLAG) == STATE_IS_DIRTY_FLAG;
-}
-
-static inline bool state_a_is_next(const CIXL_CxlState state)
-{
-    return (bool) (state & STATE_FIRST_BIT_MASK) == STATE_A_IS_NEXT;
-}
-
-inline void buffer_swap_and_clear_is_dirty(const int index)
-{
-    static const uint8_t one = 1;
+    //static const uint8_t one = 1;
 
     if (index < CIXL_TERM_AREA)
     {
         CIXL_CxlState *state = &SCREEN_BUFFER.state_buffer[index];
-        *state ^= one; /* Swap current <-> next: flip first bit*/
-        *state &= (uint8_t) 0xFD; /* Clear is dirty flag: set second bit on 0 and keep the other bits. AND with 1111_1101*/
+
+        //*state ^= one; /* Swap current <-> next: flip first bit*/
+        state->a_is_next = !state->a_is_next;
+
+        //*state &= (uint8_t) 0xFD; /* Clear is dirty flag: set second bit on 0 and keep the other bits. AND with 1111_1101*/
+        state->is_dirty = false;
     }
 }
 
-inline void buffer_clear_is_dirty(const int index)
+inline void screen_buffer_clear_is_dirty(const int index)
 {
     CIXL_CxlState *state = &SCREEN_BUFFER.state_buffer[index];
-    *state &= (uint8_t) 0xFD; /* Clear is dirty flag: set second bit on 0 and keep the other bits. AND with 1111_1101*/
+    //*state &= (uint8_t) 0xFD; /* Clear is dirty flag: set second bit on 0 and keep the other bits. AND with 1111_1101*/
+    state->is_dirty = false;
 }
 
-CIXL_Cxl buffer_pick_current(const int index)
+CIXL_Cxl screen_buffer_pick_current(const int index)
 {
     if (index < CIXL_TERM_AREA)
     {
@@ -169,18 +181,18 @@ CIXL_Cxl buffer_pick_current(const int index)
     }
 }
 
-bool buffer_put_current(const int index, const CIXL_Cxl cxl)
+bool screen_buffer_put_current(const int index, const CIXL_Cxl cixl)
 {
     if (index < CIXL_TERM_AREA)
     {
         CIXL_CxlState current_state = SCREEN_BUFFER.state_buffer[index];
         if (state_a_is_next(current_state))
         {
-            SCREEN_BUFFER.buffer_b[index] = cxl;
+            SCREEN_BUFFER.buffer_b[index] = cixl;
         }
         else
         {
-            SCREEN_BUFFER.buffer_a[index] = cxl;
+            SCREEN_BUFFER.buffer_a[index] = cixl;
         }
         return true;
     }
@@ -192,7 +204,7 @@ bool buffer_put_current(const int index, const CIXL_Cxl cxl)
 
 bool SCREEN_BUFFER_IS_DIRTY = false;
 
-inline bool buffer_put_next(const int index, const CIXL_Cxl cxl)
+inline bool screen_buffer_put_next(const int index, const CIXL_Cxl cixl)
 {
     if (index >= CIXL_TERM_AREA)
     {
@@ -201,10 +213,11 @@ inline bool buffer_put_next(const int index, const CIXL_Cxl cxl)
     else
     {
         CIXL_CxlState *state = &(SCREEN_BUFFER.state_buffer[index]);
-        (state_a_is_next(*state) ? SCREEN_BUFFER.buffer_a : SCREEN_BUFFER.buffer_b)[index] = cxl;
+        (state_a_is_next(*state) ? SCREEN_BUFFER.buffer_a : SCREEN_BUFFER.buffer_b)[index] = cixl;
 
         /*Set State to IsDirty*/
-        *state |= STATE_IS_DIRTY_FLAG;
+        //*state |= STATE_IS_DIRTY_FLAG;
+        state->is_dirty = true;
         SCREEN_BUFFER_IS_DIRTY = true;
         return true;
     }
@@ -213,7 +226,7 @@ inline bool buffer_put_next(const int index, const CIXL_Cxl cxl)
 /*! get the the cixl that should be rendered in the next render cycle
  *! \param out_is_dirty indicates whether the cixl is dirty, when NULL it will not be set
  * */
-CIXL_Cxl buffer_pick_next(const int index, int *out_is_dirty)
+CIXL_Cxl screen_buffer_pick_next(const int index, int *out_is_dirty)
 {
     if (index < CIXL_TERM_AREA)
     {
@@ -238,7 +251,7 @@ static inline CIXL_Cxl buffer_pick_next_optimized(const int index)
     return (state_a_is_next(current_state) ? SCREEN_BUFFER.buffer_a : SCREEN_BUFFER.buffer_b)[index];
 }
 
-inline bool buffer_get_cixl_state(const int index, CIXL_Cxl *out_current, CIXL_Cxl *out_next, int *out_is_dirty)
+inline bool screen_buffer_get_cixl_state(const int index, CIXL_Cxl *out_current, CIXL_Cxl *out_next, int *out_is_dirty)
 {
     if (index < CIXL_TERM_AREA)
     {
@@ -280,8 +293,10 @@ static inline bool cxl_equals(const CIXL_Cxl *left, const CIXL_Cxl *right)
         return false;
     }
 
-    return left->char_value == right->char_value && left->fg_color == right->fg_color &&
-           left->bg_color == right->bg_color && left->style_opts == right->style_opts;
+    return cixl_pack_cxl(left) == cixl_pack_cxl(right);
+
+    /*return left->char_value == right->char_value && left->fg_color == right->fg_color &&
+           left->bg_color == right->bg_color && left->style_opts == right->style_opts;*/
 }
 
 static inline bool cxl_style_equals(const CIXL_Cxl *left, const CIXL_Cxl *right)
@@ -304,7 +319,7 @@ bool cixl_put(const int x, const int y, const CIXL_Cxl cxl)
         CIXL_Cxl next_cxl;
         int      is_dirty;
 
-        if ((buffer_get_cixl_state(index, &current_cxl, &next_cxl, &is_dirty)) == false)
+        if ((screen_buffer_get_cixl_state(index, &current_cxl, &next_cxl, &is_dirty)) == false)
         {
             return false;
         }
@@ -319,32 +334,35 @@ bool cixl_put(const int x, const int y, const CIXL_Cxl cxl)
         {
             /*The next Cxl to be drawn is already dirty, so just overwrite it*/
             bool res;
-            res = buffer_put_next(index, cxl);
+            res = screen_buffer_put_next(index, cxl);
 
             //When the next Cxl was the same as the previous one, clear the is dirty flag
             if (cxl_equals(&cxl, &current_cxl))
             {
                 /*
                   For example: draw 'a', draw 'b' render, draw 'a', render
-                   that should not result is redraws, since 'b' was the end result before each render cycle*/
-                buffer_clear_is_dirty(index);
+                   that should not result in redraws, since 'b' was the end result before each render cycle*/
+                screen_buffer_clear_is_dirty(index);
             }
             return res;
         }
 
         if (cxl_equals(&cxl, &current_cxl))
         {
-            buffer_clear_is_dirty(index);
+            screen_buffer_clear_is_dirty(index);
             return false;
         }
 
-        return buffer_put_next(index, cxl);
+        return screen_buffer_put_next(index, cxl);
     }
 }
 
 bool cixl_puti(const int x, const int y, int32_t *cxl)
 {
-    return cixl_put(x, y, *cixl_unpack_cxl(cxl));
+    //TODO: refactor, or remove this function
+    CIXL_Cxl c;// = {(char) *cxl};
+    cixl_unpack_cxl(cxl, &c);
+    return cixl_put(x, y, c);
 }
 
 // secure strlen
@@ -358,10 +376,11 @@ static inline unsigned int c_strnlen_s(const char *str, size_t maxsize)
 }
 */
 
-void cixl_print(const int x, const int y, const char *str, const CIXL_Color fg_color, const CIXL_Color bg_color,
-                const CIXL_StyleOpts decoration)
+void
+cixl_print(const int start_x, const int start_y, const char *str, const CIXL_Color fg_color, const CIXL_Color bg_color,
+           const CIXL_StyleOpts decoration)
 {
-    int        tmp_x   = x;
+    int        tmp_x   = start_x;
     unsigned   maxsize = CIXL_TERM_WIDTH;
     const char *s;
 
@@ -373,7 +392,7 @@ void cixl_print(const int x, const int y, const char *str, const CIXL_Color fg_c
         cxl_to_add.fg_color   = fg_color;
         cxl_to_add.bg_color   = bg_color;
         cxl_to_add.style_opts = decoration;
-        cixl_put(tmp_x++, y, cxl_to_add);
+        cixl_put(tmp_x++, start_y, cxl_to_add);
     }
 }
 
@@ -389,11 +408,11 @@ CIXL_Cxl cixl_pick(const int x, const int y)
 
         if (state_is_dirty(SCREEN_BUFFER.state_buffer[index]))
         {
-            return buffer_pick_next(index, NULL);
+            return screen_buffer_pick_next(index, NULL);
         }
         else
         {
-            return buffer_pick_current(index);
+            return screen_buffer_pick_current(index);
         }
     }
 }
@@ -425,7 +444,7 @@ void cixl_reset()
     int i = 0;
     while (i < CIXL_TERM_AREA)
     {
-        SCREEN_BUFFER.state_buffer[i] = 0;
+        SCREEN_BUFFER.state_buffer[i] = EMPTY_STATE;//{true, false}//0;
         SCREEN_BUFFER.buffer_a[i]     = CXL_EMPTY;
         SCREEN_BUFFER.buffer_b[i]     = CXL_EMPTY;
         ++i;
@@ -526,7 +545,7 @@ int cixl_render()
 
                     last_cxl = next_cxl_to_draw;//remember this
 
-                    buffer_swap_and_clear_is_dirty(i);//done with this cxl
+                    screen_buffer_swap_and_clear_is_dirty(i);//done with this cxl
 
                     prev_written_idx = i;
                 }

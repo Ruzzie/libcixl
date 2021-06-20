@@ -18,14 +18,13 @@ CIXL_Game INITIAL_GAME  = {true, 16, 500, CLOCKS_PER_SEC, cixl_game_exit, NULL, 
 CIXL_Game *CURRENT_GAME = &INITIAL_GAME;
 
 #ifndef __cplusplus
-CIXL_GameTime CURRENT_GAME_TIME   = {0, 0, 0, false, 0, 0, 0};
+CIXL_GameTime CURRENT_GAME_TIME = {0, 0, 0, false, 0, 0, 0};
 #endif
 
 /// Reference to the shared game state. This is passed through to the update and draw methods.
 CIXL_TYPED_GAME_STATE(CIXL_GAME_STATE_TYPE, SHARED_GAME_STATE_PTR) = NULL;
 
-bool          GAME_IS_INITIALIZED = false;
-
+bool    GAME_IS_INITIALIZED            = false;
 clock_t PREVIOUS_TICKS                 = 0;
 clock_t ACCUMULATED_ELAPSED_TIME_TICKS = 0;
 clock_t TARGET_ELAPSED_TIME_TICKS      = 16;
@@ -108,7 +107,6 @@ static void cixl_game_do_draw(CIXL_GameTime *game_time, void *shared_state)
 int cixl_game_tick(CIXL_GameTime *game_time, void *shared_state, const bool *should_exit)
 {
     //Inspired by MonoGame Tick (https://github.com/MonoGame/MonoGame/blob/develop/MonoGame.Framework/Game.cs)
-    //clock();
 
     goto RetryTick;
     RetryTick:

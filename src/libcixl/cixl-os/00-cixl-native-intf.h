@@ -1,0 +1,8 @@
+//
+// Created by dorus on 3-10-2020.
+//
+
+#ifndef LIBCIXL_00_CIXL_NATIVE_INTF_H
+#define LIBCIXL_00_CIXL_NATIVE_INTF_H
+
+#endif //LIBCIXL_00_CIXL_NATIVE_INTF_H

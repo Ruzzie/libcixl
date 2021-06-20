@@ -188,7 +188,7 @@ int main(void)
 
     cixl_game_init(NULL);
 
-    cixl_init_screen(SCREEN_WIDTH, SCREEN_HEIGHT, &VT_RENDER_DEVICE);
+    cixl_init_screen_buffer(SCREEN_WIDTH, SCREEN_HEIGHT, &VT_RENDER_DEVICE);
 
     hide_cursor();
     //set_video_mode();
@@ -240,7 +240,7 @@ int main(void)
     cixl_game_run();//Run the gameloop
 
     //Cleanup
-    cixl_free_screen();
+    cixl_free_screen_buffer();
 
     //printf("loop count: [%i]\r\n", total_loop_count);
     show_cursor();

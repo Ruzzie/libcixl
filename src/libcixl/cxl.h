@@ -15,11 +15,11 @@
 
 typedef struct CIXL_Cxl
 {
-    char           char_value;
-    CIXL_Color     fg_color;
-    CIXL_Color     bg_color;
-    CIXL_StyleOpts style_opts;
-}                   CIXL_Cxl;
+    char           char_value: 8;
+    CIXL_Color     fg_color: 4;
+    CIXL_Color     bg_color: 4;
+    CIXL_StyleOpts style_opts: 8;
+} CIXL_Cxl;
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,7 +33,7 @@ extern const struct CIXL_Cxl CXL_EMPTY;
 
 CIXLLIB_API int32_t cixl_pack_cxl(const CIXL_Cxl *cxl);
 
-CIXLLIB_API CIXL_Cxl *cixl_unpack_cxl(int32_t *cxl_ptr);
+CIXLLIB_API void cixl_unpack_cxl(const int32_t *cxl_ptr,  CIXL_Cxl *output);
 
 #ifdef __cplusplus
 } /* End of extern "C" */
