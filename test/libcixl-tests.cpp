@@ -82,9 +82,9 @@ TEST_CASE("Unpack CIXL_Cxl", "should be valid")
     int32_t  int_value = cixl_pack_cxl(&a);
     REQUIRE(int_value == 0x45341);
     //int32_t  *int_ptr  = &int_value;
-    CIXL_Cxl unpacked_cxl ={};
+    //CIXL_Cxl unpacked_cxl ={};
 
-    cixl_unpack_cxl(&int_value, &unpacked_cxl);
+    CIXL_Cxl unpacked_cxl = cixl_unpack_cxl(&int_value);
 
     /*REQUIRE(unpacked_cxl.char_value == 65);
     REQUIRE(unpacked_cxl.fg_color == 3);

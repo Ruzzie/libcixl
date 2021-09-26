@@ -33,7 +33,7 @@ extern const struct CIXL_Cxl CXL_EMPTY;
 
 CIXLLIB_API int32_t cixl_pack_cxl(const CIXL_Cxl *cxl);
 
-CIXLLIB_API void cixl_unpack_cxl(const int32_t *cxl_ptr,  CIXL_Cxl *output);
+CIXLLIB_API CIXL_Cxl cixl_unpack_cxl(const int32_t *cxl_ptr);
 
 #ifdef __cplusplus
 } /* End of extern "C" */

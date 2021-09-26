@@ -84,7 +84,7 @@ static inline void fps_counter_update(CIXL_GameTime *game_time)
     }
 }
 
-static void cixl_game_do_update(CIXL_GameTime *game_time, void *shared_state)
+static void cixl_game_do_update(CIXL_GameTime *game_time, CIXL_TYPED_GAME_STATE(CIXL_GAME_STATE_TYPE, shared_state))
 {
     fps_counter_update(game_time);
 
@@ -94,7 +94,7 @@ static void cixl_game_do_update(CIXL_GameTime *game_time, void *shared_state)
     }
 }
 
-static void cixl_game_do_draw(CIXL_GameTime *game_time, void *shared_state)
+static void cixl_game_do_draw(CIXL_GameTime *game_time, CIXL_TYPED_GAME_STATE(CIXL_GAME_STATE_TYPE, shared_state))
 {
     ++FRAMES_COUNTER;
 
@@ -104,7 +104,7 @@ static void cixl_game_do_draw(CIXL_GameTime *game_time, void *shared_state)
     }
 }
 
-int cixl_game_tick(CIXL_GameTime *game_time, void *shared_state, const bool *should_exit)
+int cixl_game_tick(CIXL_GameTime *game_time, CIXL_TYPED_GAME_STATE(CIXL_GAME_STATE_TYPE, shared_state), const bool *should_exit)
 {
     //Inspired by MonoGame Tick (https://github.com/MonoGame/MonoGame/blob/develop/MonoGame.Framework/Game.cs)
 

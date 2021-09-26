@@ -6,7 +6,7 @@
 
 typedef uint8_t CIXL_StyleOpts;
 
-//! \brief Represents the cxl character styles, this is a bit-flag, zo multiple styles can be combined
+//! \brief Represents the cxl character styles, this is a bit-flag, so multiple styles can be combined
 typedef enum CIXL_Style
 {
     //! \brief  All attributes off

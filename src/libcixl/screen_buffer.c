@@ -10,8 +10,6 @@
 #endif
 #endif
 
-//typedef uint8_t CIXL_CxlState;
-
 typedef struct CIXL_CxlState
 {
     _Bool a_is_next: 1;
@@ -23,13 +21,11 @@ static const CIXL_CxlState EMPTY_STATE = {true, false};
 static inline _Bool state_is_dirty(const CIXL_CxlState state)
 {
     return state.is_dirty;
-    //return (bool) (state & STATE_IS_DIRTY_FLAG) == STATE_IS_DIRTY_FLAG;
 }
 
 static inline _Bool state_a_is_next(const CIXL_CxlState state)
 {
     return state.a_is_next;
-    //return (bool) (state & STATE_FIRST_BIT_MASK) == STATE_A_IS_NEXT;
 }
 
 typedef CIXL_Cxl      *CIXL_FRAME;
@@ -204,6 +200,7 @@ bool screen_buffer_put_current(const int index, const CIXL_Cxl cixl)
 
 bool SCREEN_BUFFER_IS_DIRTY = false;
 
+/*! put the given Cxl into the (next) screen buffer and mark it as dirty */
 inline bool screen_buffer_put_next(const int index, const CIXL_Cxl cixl)
 {
     if (index >= CIXL_TERM_AREA)
@@ -340,19 +337,21 @@ bool cixl_put(const int x, const int y, const CIXL_Cxl cxl)
             if (cxl_equals(&cxl, &current_cxl))
             {
                 /*
-                  For example: draw 'a', draw 'b' render, draw 'a', render
-                   that should not result in redraws, since 'b' was the end result before each render cycle*/
+                  For example: (put 'a'), (put 'b') (render), (put 'a'), (put 'b') (render)
+                   that should not result in redraws, since 'b' was the end result before each render cycle
+                */
                 screen_buffer_clear_is_dirty(index);
             }
             return res;
         }
 
-        if (cxl_equals(&cxl, &current_cxl))
+        if (cxl_equals(&cxl, &current_cxl)) // extra guard clause, the Cxl is not dirty and is the same....
         {
             screen_buffer_clear_is_dirty(index);
             return false;
         }
 
+        // write the Cxl for the next render cycle
         return screen_buffer_put_next(index, cxl);
     }
 }
@@ -360,9 +359,9 @@ bool cixl_put(const int x, const int y, const CIXL_Cxl cxl)
 bool cixl_puti(const int x, const int y, int32_t *cxl)
 {
     //TODO: refactor, or remove this function
-    CIXL_Cxl c;// = {(char) *cxl};
-    cixl_unpack_cxl(cxl, &c);
-    return cixl_put(x, y, c);
+    // CIXL_Cxl c;// = {(char) *cxl};
+    ;
+    return cixl_put(x, y, cixl_unpack_cxl(cxl));
 }
 
 // secure strlen
@@ -384,7 +383,7 @@ cixl_print(const int start_x, const int start_y, const char *str, const CIXL_Col
     unsigned   maxsize = CIXL_TERM_WIDTH;
     const char *s;
 
-    //safe strlen and and copy combined
+    //safe strlen and copy combined
     for (s = str; *s && maxsize--; ++s)
     {
         CIXL_Cxl cxl_to_add;
@@ -456,6 +455,10 @@ static inline void c_str_terminate(char *src, const unsigned int real_size_plus_
     src[real_size_plus_one] = '\0';
 }
 
+/*!
+ *
+ * \param line_buffer_size pointer to the current line buffer size, the value will be set to 0 when drawn.
+ */
 static inline int render_flush_line_buffer(const int x, const int y, const CIXL_Cxl last_cxl, int *line_buffer_size)
 {
     int draw_call_count = 0;
@@ -470,6 +473,7 @@ static inline int render_flush_line_buffer(const int x, const int y, const CIXL_
 
     if ((*line_buffer_size) > 1)
     {
+        // multiple Cxl s on the line, draw a horizontal string, with different characters but the same style
         c_str_terminate(LINE_BUFFER, *line_buffer_size);
         RENDER_DEVICE->f_draw_horiz_s(x, y, &LINE_BUFFER[0], (*line_buffer_size), last_cxl.fg_color, last_cxl.bg_color,
                                       last_cxl.style_opts);
@@ -529,9 +533,9 @@ int cixl_render()
 
                     CIXL_Cxl next_cxl_to_draw = buffer_pick_next_optimized(i);
 
-                    //Same line continuation, different styles, flush buffer to a draw call
                     if (is_continuation_on_same_line && !cxl_style_equals(&next_cxl_to_draw, &last_cxl))
                     {
+                        // Same line continuation, different styles, flush buffer to a draw call
                         draw_call_count += render_flush_line_buffer(draw_x, draw_y, last_cxl, &line_buffer_size);
                     }
 
@@ -553,7 +557,6 @@ int cixl_render()
 
             ++i;
         }
-
 
         if (line_buffer_size > 0)
         {   //flush buffer with remaining cxl s
