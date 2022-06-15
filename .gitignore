@@ -13,3 +13,8 @@ cmake-build-debug/
 cmake-build-release/
 libcixl.obj
 libcixl-dos16.lib
+.cmake/api/v1/query/toolchains-v1
+.cmake/
+src/editor/.idea/editor.iml
+src/editor/.idea/
+src/editor/elm-stuff/
