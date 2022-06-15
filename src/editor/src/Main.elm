@@ -22,6 +22,22 @@ module Main exposing (..)
    This is a purely functional app where we can edit fontmaps,
      color palettes and draw pretty canvases for testing / dev purposes
 -}
+{-
+   TODO  [ ]  color palette editor see if we can use https://package.elm-lang.org/packages/simonh1000/elm-colorpicker/latest/
+   TODO  [ ]  Save , fontmap, canvas, colors
+   TODO  [ ]  Tweak performance of fontmap rendering
+   TODO  [ ]  Load , fontmap, canvas, colors
+   TODO  [ ]  Copy paste
+   TODO  [ ]  Drag select
+   TODO  [ ]  Draw shapes (rectangle with selected glyphs for corners, lines; line (straight, diagonal))
+   TODO  [ ]  Clean up code
+   TODO  [ ]  Zoom in / out
+   TODO  [ ]  Adjust canvas rows, cols
+   TODO  [ ]  Load .ans data (for fun)
+
+
+
+-}
 
 import Array exposing (Array)
 import Bitwise
