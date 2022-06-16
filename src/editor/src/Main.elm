@@ -1181,49 +1181,52 @@ renderShortcutsGlyphSelector fontMap colorPalettes fgColorIndex bgColorIndex gly
             , fontSize (px 8)
             ]
         ]
-        (let
-            startIdx =
-                glyphStartIdx
+        ([ div [ css [ marginTop (px 2), marginBottom (px 2), textAlign center, width (px <| (scaleFactor * glyphSizeInPx) + 4) ] ] [ text <| "PgU", hr [] [] ] ]
+            ++ (let
+                    startIdx =
+                        glyphStartIdx
 
-            shortCutsToShow =
-                Array.slice startIdx (startIdx + 16) fontMap
+                    shortCutsToShow =
+                        Array.slice startIdx (startIdx + 16) fontMap
 
-            shortCutNumberToKey number =
-                if number <= 12 then
-                    "F" ++ String.fromInt number
+                    shortCutNumberToKey number =
+                        if number <= 12 then
+                            "F" ++ String.fromInt number
 
-                else
-                    "C" ++ String.fromInt (number - 12)
-         in
-         Array.toList <|
-            Array.indexedMap
-                (\glyphIdx glyphBitmap ->
-                    div [ css [ width (px <| scaleFactor * glyphSizeInPx), margin (px 2) ] ]
-                        [ -- key shortcut
-                          --   glyph
-                          div [ css [ marginTop (px 2), marginBottom (px 1), textAlign center ] ] [ text <| shortCutNumberToKey (modBy 16 glyphIdx + 1) ]
-                        , div []
-                            [ Svg.svg
-                                [ SvgAttr.width <| String.fromFloat (glyphSizeInPx * scaleFactor)
-                                , SvgAttr.height <| String.fromFloat (glyphSizeInPx * scaleFactor)
-                                , SvgAttr.viewBox <|
-                                    "0 0 "
-                                        ++ String.fromFloat glyphSizeInPx
-                                        ++ " "
-                                        ++ String.fromFloat glyphSizeInPx
+                        else
+                            "C" ++ String.fromInt (number - 12)
+                in
+                Array.toList <|
+                    Array.indexedMap
+                        (\glyphIdx glyphBitmap ->
+                            div [ css [ width (px <| scaleFactor * glyphSizeInPx), margin (px 2) ] ]
+                                [ -- key shortcut
+                                  --   glyph
+                                  div [ css [ marginTop (px 2), marginBottom (px 1), textAlign center ] ] [ text <| shortCutNumberToKey (modBy 16 glyphIdx + 1) ]
+                                , div []
+                                    [ Svg.svg
+                                        [ SvgAttr.width <| String.fromFloat (glyphSizeInPx * scaleFactor)
+                                        , SvgAttr.height <| String.fromFloat (glyphSizeInPx * scaleFactor)
+                                        , SvgAttr.viewBox <|
+                                            "0 0 "
+                                                ++ String.fromFloat glyphSizeInPx
+                                                ++ " "
+                                                ++ String.fromFloat glyphSizeInPx
+                                        ]
+                                        [ drawRawGlyphFromBitmap []
+                                            colorPalettes
+                                            { glyph = Char.fromCode glyphIdx, fgColorIndex = fgColorIndex, bgColorIndex = bgColorIndex }
+                                            1
+                                            Vector2.zeroVector
+                                            (\_ -> [])
+                                            glyphBitmap
+                                        ]
+                                    ]
                                 ]
-                                [ drawRawGlyphFromBitmap []
-                                    colorPalettes
-                                    { glyph = Char.fromCode glyphIdx, fgColorIndex = fgColorIndex, bgColorIndex = bgColorIndex }
-                                    1
-                                    Vector2.zeroVector
-                                    (\_ -> [])
-                                    glyphBitmap
-                                ]
-                            ]
-                        ]
-                )
-                shortCutsToShow
+                        )
+                        shortCutsToShow
+               )
+            ++ [ div [ css [ marginTop (px 2), marginBottom (px 2), textAlign center, width (px <| (scaleFactor * glyphSizeInPx) + 4) ] ] [ hr [] [], text <| "PDn" ] ]
         )
 
 
