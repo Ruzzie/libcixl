@@ -23,19 +23,21 @@ module Main exposing (..)
      color palettes and draw pretty canvases for testing / dev purposes
 -}
 {-
-   TODO  [ ]  color palette editor see if we can use https://package.elm-lang.org/packages/simonh1000/elm-colorpicker/latest/
-   TODO  [ ]  Save , fontmap, canvas, colors
-   TODO  [ ]  Tweak performance of fontmap rendering
-   TODO  [ ]  Load , fontmap, canvas, colors
-   TODO  [ ]  Copy paste
-   TODO  [ ]  Drag select
-   TODO  [ ]  Draw shapes (rectangle with selected glyphs for corners, lines; line (straight, diagonal))
-   TODO  [ ]  Clean up code
-   TODO  [ ]  Zoom in / out
-   TODO  [ ]  Adjust canvas rows, cols
-   TODO  [ ]  Load .ans data (for fun)
 
+    TODO  [ ]  Save , fontmap, canvas, colors
+    TODO  [ ]  Load , fontmap, canvas, colors
+    TODO [ ] Save a Cixl as a data url, such that we can use them as icons in our own application
+    TODO [ ] WriteString renders a string in a selected format, (mini cixl buffer) such that we can use our own system font as labels in the app (would be nice)
+    TODO  [ ]  Tweak performance of fontmap rendering
+    TODO  [ ]  Copy paste
+    TODO  [ ]  Drag select
+    TODO  [ ]  Draw shapes (rectangle with selected glyphs for corners, lines; line (straight, diagonal))
+    TODO  [ ]  Clean up code
+    TODO  [ ]  Zoom in / out
+    TODO  [ ]  Adjust canvas rows, cols
+    TODO  [ ]  Load .ans data (for fun)
 
+   [X]  color palette editor (color pickers)
 
 -}
 
@@ -54,19 +56,18 @@ import Graphics.Vector2 as Vector2
 import Hex
 import Html.Events.Extra.Pointer
 import Html.Styled as Html exposing (..)
-import Html.Styled.Attributes exposing (css, id, tabindex, title)
+import Html.Styled.Attributes exposing (css, for, id, name, tabindex, title, type_, value)
 import Html.Styled.Events
-import Html.Styled.Keyed
-import Html.Styled.Lazy exposing (lazy, lazy2, lazy3, lazy5)
+import Html.Styled.Lazy exposing (lazy3, lazy5)
 import Json.Decode as Decode
-import Keyboard.Event exposing (KeyboardEvent, decodeKeyboardEvent)
+import Keyboard.Event exposing (KeyboardEvent)
 import Keyboard.Key exposing (Key(..))
 import PixelFonts
 import Svg.Styled as Svg
 import Svg.Styled.Attributes as SvgAttr
 import Svg.Styled.Events
 import Svg.Styled.Keyed
-import Svg.Styled.Lazy exposing (lazy4)
+import Svg.Styled.Lazy
 import Task
 
 
@@ -419,6 +420,11 @@ type alias MainModel =
     }
 
 
+type PaletteType
+    = Foreground
+    | Background
+
+
 type UpdateMsg
     = KeyPressed String
     | HandleKeyboardEvent KeyboardEvent
@@ -429,6 +435,7 @@ type UpdateMsg
     | UpdateSelectedBgColorIdx Int
     | GlyphEditorPixelClicked Int
     | FontMapGlyphClicked Int
+    | PaletteColorPickerClicked ( PaletteType, String )
 
 
 type alias Cursor =
@@ -462,6 +469,7 @@ type EditorMode
 type ActiveTool
     = TypingTool
     | PaintingTool
+    | SelectColorTool
 
 
 main =
@@ -475,7 +483,7 @@ main =
 
 initialModel : MainModel
 initialModel =
-    { fontMap = defaultFontMap
+    { fontMap = fantasyFontMap
     , fontMapGridScale = 3
     , editorMode = CanvasMode
     , canvasModel =
@@ -507,6 +515,7 @@ type CanvasMessage
     = None
     | MoveCanvasCursor NavigationAction
     | PaintTile TileCoordinate
+    | SelectTileColors TileCoordinate
     | TypeAction Char
     | Backspace -- dunno a better name
     | Delete
@@ -516,9 +525,14 @@ type GlyphEditorMessage
     = ToggleBit Int
 
 
+type ColorPalettesMessage
+    = UpdateCurrentSelectedColor ( PaletteType, ColorDefinition )
+
+
 type EditorModeAction
     = CanvasAction CanvasMessage
     | GlyphEditorAction GlyphEditorMessage
+    | ColorPalettesAction ColorPalettesMessage
     | Noop
 
 
@@ -661,6 +675,11 @@ update updateMsg model =
                                 (CanvasAction (PaintTile mouseTilePosition))
                                 model
 
+                        SelectColorTool ->
+                            handleAction
+                                (CanvasAction (SelectTileColors mouseTilePosition))
+                                model
+
                 FontMapSelectorMode ->
                     ( model, Cmd.none )
 
@@ -708,6 +727,14 @@ update updateMsg model =
 
                 GlyphEditorMode ->
                     ( model, Cmd.none )
+
+        PaletteColorPickerClicked ( paletteType, hexColorString ) ->
+            let
+                color =
+                    --Debug.log hexColorString
+                    fromCss (hex hexColorString)
+            in
+            handleAction (ColorPalettesAction (UpdateCurrentSelectedColor ( paletteType, color ))) model
 
 
 handleAction : EditorModeAction -> MainModel -> ( MainModel, Cmd UpdateMsg )
@@ -797,6 +824,19 @@ handleAction editorAction model =
                     , Cmd.none
                     )
 
+                SelectTileColors tileCoordinate ->
+                    -- set the current selected fg and bg colors to the colors of the selected tile
+                    let
+                        indexToSelect =
+                            xAndYToIndex model.canvasModel.gridSizeInTiles.width tileCoordinate
+                    in
+                    case Dict.get indexToSelect model.canvasModel.cixlBuffer of
+                        Just cixl ->
+                            ( { model | selectedFgIdx = cixl.fgColorIndex, selectedBgIdx = cixl.bgColorIndex }, Cmd.none )
+
+                        Nothing ->
+                            ( model, Cmd.none )
+
         Noop ->
             ( model, Cmd.none )
 
@@ -825,6 +865,24 @@ handleAction editorAction model =
 
                         Nothing ->
                             ( model, Cmd.none )
+
+        ColorPalettesAction colorPalettesMessage ->
+            case colorPalettesMessage of
+                UpdateCurrentSelectedColor ( paletteType, colorDefinition ) ->
+                    let
+                        currentPalettes =
+                            -- (Debug.log <| Debug.toString colorDefinition)
+                            model.currentPalettes
+
+                        updatedPalettes =
+                            case paletteType of
+                                Foreground ->
+                                    { currentPalettes | fg = Array.set model.selectedFgIdx colorDefinition currentPalettes.fg }
+
+                                Background ->
+                                    { currentPalettes | bg = Array.set model.selectedBgIdx colorDefinition currentPalettes.bg }
+                    in
+                    ( { model | currentPalettes = updatedPalettes }, Cmd.none )
 
 
 paintTile : CanvasCixlBuffer -> Int -> TileCoordinate -> Int -> Int -> CanvasCixlBuffer
@@ -907,7 +965,7 @@ view mainModel =
                        """
             ]
         , div [ css [ displayFlex, defaultTextStyle ] ]
-            [ lazy2 renderColorPalettes mainModel.selectedFgIdx mainModel.selectedBgIdx
+            [ lazy3 renderColorPalettes mainModel.currentPalettes mainModel.selectedFgIdx mainModel.selectedBgIdx
             , renderCanvasActionsPanel mainModel.canvasModel.currentCanvasTool
             , lazy3 renderCanvas mainModel.fontMap mainModel.currentPalettes mainModel.canvasModel
             , div
@@ -943,6 +1001,9 @@ activeToolToString activeTool =
 
         PaintingTool ->
             "Paint tool"
+
+        SelectColorTool ->
+            "Color sel."
 
 
 renderStatusBar canvasGridSize cursorPos selectedChar editorMode canvasTool =
@@ -1051,6 +1112,10 @@ renderCanvasActionsPanel currentTool =
             "Paint mode, shortcut: ctrl b"
             (currentTool == PaintingTool)
             [ Html.Styled.Attributes.fromUnstyled <| Html.Events.Extra.Pointer.onDown (\_ -> HandleToolBarClick PaintingTool) ]
+        , drawSystemGlyphIconButton 7
+            "Select colors, shortcut: ctrl w"
+            (currentTool == SelectColorTool)
+            [ Html.Styled.Attributes.fromUnstyled <| Html.Events.Extra.Pointer.onDown (\_ -> HandleToolBarClick SelectColorTool) ]
         , hr [ css [ width (px <| (24 * 2) - 2) ] ] []
         ]
 
@@ -1113,7 +1178,20 @@ leftBarWidth =
     colorPaletteColorBlockSizeInPx * colorPaletteColumns
 
 
-renderColorPalettes selectedFgIdx selectedBgIdx =
+toCssHexString colorDefinition =
+    "#" ++ Hex.toString colorDefinition.red ++ Hex.toString colorDefinition.green ++ Hex.toString colorDefinition.blue
+
+
+renderColorPalettes colorPalettes selectedFgIdx selectedBgIdx =
+    let
+        selectedFgColorHexStr =
+            String.toUpper <|
+                toCssHexString (Maybe.withDefault { red = 0, green = 0, blue = 0 } (Array.get selectedFgIdx colorPalettes.fg))
+
+        selectedBgColorHexStr =
+            String.toUpper <|
+                toCssHexString (Maybe.withDefault { red = 255, green = 255, blue = 255 } (Array.get selectedBgIdx colorPalettes.bg))
+    in
     div
         [ css
             [ backgroundColor (rgb 50 50 50)
@@ -1156,8 +1234,36 @@ renderColorPalettes selectedFgIdx selectedBgIdx =
                             []
                         )
                 )
-                fgPalette
+                colorPalettes.fg
             )
+            ++ [ input
+                    [ type_ "color"
+                    , id "fgColorPicker"
+                    , name "fgColorPicker"
+                    , title "Pick a foreground color"
+                    , value selectedFgColorHexStr
+                    , css
+                        [ width (px (leftBarWidth - 4))
+                        , margin (px 2)
+                        , backgroundColor (rgb 121 121 121)
+                        , cursor pointer
+                        , border3 (px 2) outset (rgb 150 150 150)
+                        ]
+                    , Html.Styled.Events.onInput (\hexColorStr -> PaletteColorPickerClicked ( Foreground, hexColorStr ))
+                    ]
+                    []
+               , span [ css [ display inlineBlock, width (px leftBarWidth), textAlign center, color (rgb 215 215 215), fontSize (px 20) ] ] [ text selectedFgColorHexStr ]
+               , label
+                    [ for "fgColorPicker"
+                    , css
+                        [ color (rgb 175 175 175)
+                        , width (px leftBarWidth)
+                        , margin (px 0)
+                        , textAlign center
+                        ]
+                    ]
+                    [ text "^ foreground ^" ]
+               ]
             ++ -- separator
                [ hr [ css [ width (px leftBarWidth) ] ] [] ]
             ++ -- bg colors
@@ -1191,8 +1297,38 @@ renderColorPalettes selectedFgIdx selectedBgIdx =
                                 []
                             )
                     )
-                    bgPalette
+                    colorPalettes.bg
                 )
+            ++ [ input
+                    [ type_ "color"
+                    , id "bgColorPicker"
+                    , name "bgColorPicker"
+                    , title "Pick a background color"
+                    , value selectedBgColorHexStr
+                    , css
+                        [ width (px (leftBarWidth - 4))
+                        , margin (px 2)
+                        , backgroundColor (rgb 121 121 121)
+                        , cursor pointer
+                        , border3 (px 2) outset (rgb 150 150 150)
+                        ]
+                    , Html.Styled.Events.onInput (\hexColorStr -> PaletteColorPickerClicked ( Background, hexColorStr ))
+                    ]
+                    []
+               , span [ css [ display inlineBlock, width (px leftBarWidth), textAlign center, color (rgb 215 215 215), fontSize (px 20) ] ] [ text selectedBgColorHexStr ]
+               , label
+                    [ for "bgColorPicker"
+                    , css
+                        [ color (rgb 175 175 175)
+                        , width (px leftBarWidth)
+                        , margin (px 0)
+                        , textAlign center
+                        ]
+                    ]
+                    [ text "^ background ^" ]
+               ]
+            ++ -- separator
+               [ hr [ css [ width (px leftBarWidth) ] ] [] ]
 
 
 invertColorForContrast color =
@@ -1211,6 +1347,10 @@ cursorCssAnimation =
                 ]
             )
         ]
+
+
+paintSelectToolCursorDataImage =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAALBJREFUWIXtltEKgCAMRb3h///yetHStaS2pgleiBCJHXaWheAfam3GDgCBSGYAELYeAK0MB9AoaDrtAXDrVJMpFagDYCxA5igXwxUsAPMMgE0WvXxHh3dgATyZAe600v7WuQagOvul08ySKRQ0Y+2I9PTFebVZ+EjFTQRiBzyd88w3A193BKGzc56YipzVnZ3z/H8GvDuSZ+Co4u2cZ/vyH18FAMD8RTMlFad8Fy7X7EsvPkoF7m2hAAAAAElFTkSuQmCC"
 
 
 renderCanvas : FontMap -> ColorPalettes -> CanvasModel -> Html UpdateMsg
@@ -1241,6 +1381,10 @@ renderCanvas fontMap colorPalettes canvasModel =
 
                 PaintingTool ->
                     hover [ cursor cell ]
+
+                -- eventually we want to have a todataurl of a cixl, where the svg is serialized, that we can use as cursor
+                SelectColorTool ->
+                    hover [ property "cursor" ("url(" ++ paintSelectToolCursorDataImage ++ ") 0 32, copy") ]
 
             {- Nothing ->
                hover [ cursor default ]
