@@ -42,11 +42,16 @@ module Main exposing (..)
 -}
 
 import Array exposing (Array)
+import Base64.Decode
+import Base64.Encode
 import Bitwise
 import Browser
 import Browser.Dom as Dom
 import Browser.Events
+import Bytes exposing (Bytes)
+import Bytes.Decode
 import Bytes.Encode
+import Cbor.Encode
 import Css exposing (..)
 import Css.Animations exposing (keyframes)
 import Dict exposing (Dict)
@@ -58,7 +63,7 @@ import Html.Events.Extra.Pointer
 import Html.Styled as Html exposing (..)
 import Html.Styled.Attributes exposing (css, for, id, name, tabindex, title, type_, value)
 import Html.Styled.Events
-import Html.Styled.Lazy exposing (lazy3, lazy5)
+import Html.Styled.Lazy exposing (lazy3, lazy4, lazy5)
 import Json.Decode as Decode
 import Keyboard.Event exposing (KeyboardEvent)
 import Keyboard.Key exposing (Key(..))
@@ -233,8 +238,8 @@ defaultPalettes =
 
 
 bitIsSet : Int -> Int -> Bit
-bitIsSet bit number =
-    if Bitwise.and bit number == bit then
+bitIsSet bit value =
+    if Bitwise.and bit value == bit then
         One
 
     else
@@ -255,33 +260,78 @@ byteToBitmap byte =
     ]
 
 
+bitToInt bit =
+    case bit of
+        Zero ->
+            0
 
--- to a 64 element list of Bits
--- this represents 8x8 pixels
---
+        One ->
+            1
 
 
+bitsToByte arrayOf8Bits =
+    let
+        indexedList =
+            Array.toIndexedList arrayOf8Bits
+    in
+    List.foldl
+        (\( idx, bitValue ) total ->
+            Bitwise.or total <|
+                -- this is the idx'th bit so shift
+                Bitwise.shiftLeftBy (7 - idx)
+                    -- 0 or 1
+                    (bitToInt bitValue)
+        )
+        0
+        indexedList
+
+
+{-| to a 64 element list of Bits
+this represents 8x8 pixels
+-}
 bytesToGlyphBitmap : List Int -> GlyphBitmap
 bytesToGlyphBitmap bytes =
     { bitmap = Array.fromList <| List.concatMap (\byte -> byteToBitmap byte) bytes
     }
 
 
-fromPixelFontDefinition : List Int -> List GlyphBitmap
-fromPixelFontDefinition bytes =
+chunkConcat : (List a -> b) -> Int -> List a -> List b
+chunkConcat mapChunk chunkSize list =
     let
-        -- separate the whole list, to lists of 8, since 8 bytes is exactly one glyph (8x8 px)
+        -- separate the whole list, to lists of size chunkSize
         step remaining newListOfList =
             case remaining of
                 [] ->
                     newListOfList
 
                 _ ->
-                    -- per glyph (which is defined in 8 bytes) build a list the bitmap
-                    step (List.drop 8 remaining) (newListOfList ++ [ bytesToGlyphBitmap (List.take 8 remaining) ])
+                    -- per chunk call mapChunk
+                    step (List.drop chunkSize remaining) (newListOfList ++ [ mapChunk (List.take chunkSize remaining) ])
     in
     -- a list of 256 (8x8 font bitmap)
-    step bytes []
+    step list []
+
+
+fromPixelFontDefinition : List Int -> List GlyphBitmap
+fromPixelFontDefinition bytes =
+    chunkConcat bytesToGlyphBitmap 8 bytes
+
+
+
+{- let
+       -- separate the whole list, to lists of 8, since 8 bytes is exactly one glyph (8x8 px)
+       step remaining newListOfList =
+           case remaining of
+               [] ->
+                   newListOfList
+
+               _ ->
+                   -- per glyph (which is defined in 8 bytes) build a list the bitmap
+                   step (List.drop 8 remaining) (newListOfList ++ [ bytesToGlyphBitmap (List.take 8 remaining) ])
+   in
+   -- a list of 256 (8x8 font bitmap)
+   step bytes []
+-}
 
 
 defaultFontMap : FontMap
@@ -320,7 +370,8 @@ toRgbString color =
 -- drawRawGlyph : Array { a | bitmap : Array Bit } -> ColorPalettes -> Cixl -> Int -> { d | x : Float, y : Float } -> Svg.Svg msg
 
 
-drawRawGlyph attrs fontMap colorPalettes cixl scaleFactor absScreenPoint extrasPerPixel =
+drawRawGlyphFromBitmap : List (Svg.Attribute msg) -> ColorPalettes -> Cixl -> Int -> Vector2.Vector2 -> (Int -> List (Svg.Attribute msg)) -> GlyphBitmap -> Svg.Svg msg
+drawRawGlyphFromBitmap attrs colorPalettes cixl scaleFactor absScreenPoint extrasPerPixel bitmap =
     let
         fgColor =
             Maybe.withDefault { red = 204, green = 204, blue = 204 } (Array.get cixl.fgColorIndex colorPalettes.fg)
@@ -328,44 +379,48 @@ drawRawGlyph attrs fontMap colorPalettes cixl scaleFactor absScreenPoint extrasP
         bgColor =
             Maybe.withDefault { red = 0, green = 0, blue = 0 } (Array.get cixl.bgColorIndex colorPalettes.bg)
     in
+    Svg.g attrs <|
+        Array.toList <|
+            Array.indexedMap
+                (\idx bit ->
+                    let
+                        -- the offset
+                        bitRelativeCoord =
+                            toVector2 <|
+                                indexToXandY glyphSizeInPx idx
+
+                        bitAbsCoord =
+                            Vector2.add absScreenPoint (Vector2.multiply { x = toFloat scaleFactor, y = toFloat scaleFactor } bitRelativeCoord)
+                    in
+                    case bit of
+                        One ->
+                            toSvgRect
+                                (Rectangle.createFromPoint bitAbsCoord
+                                    { width = toFloat <| 1 * scaleFactor
+                                    , height = toFloat <| 1 * scaleFactor
+                                    }
+                                )
+                                ([ SvgAttr.fill <| toRgbString fgColor
+                                 ]
+                                    ++ extrasPerPixel idx
+                                )
+
+                        Zero ->
+                            toSvgRect
+                                (Rectangle.createFromPoint bitAbsCoord
+                                    { width = toFloat <| 1 * scaleFactor
+                                    , height = toFloat <| 1 * scaleFactor
+                                    }
+                                )
+                                ([ SvgAttr.fill <| toRgbString bgColor ] ++ extrasPerPixel idx)
+                )
+                bitmap.bitmap
+
+
+drawRawGlyph attrs fontMap colorPalettes cixl scaleFactor absScreenPoint extrasPerPixel =
     case Array.get (Char.toCode cixl.glyph) fontMap of
         Just glyphBitmap ->
-            Svg.g attrs <|
-                Array.toList <|
-                    Array.indexedMap
-                        (\idx bit ->
-                            let
-                                -- the offset
-                                bitRelativeCoord =
-                                    toVector2 <|
-                                        indexToXandY glyphSizeInPx idx
-
-                                bitAbsCoord =
-                                    Vector2.add absScreenPoint (Vector2.multiply { x = toFloat scaleFactor, y = toFloat scaleFactor } bitRelativeCoord)
-                            in
-                            case bit of
-                                One ->
-                                    toSvgRect
-                                        (Rectangle.createFromPoint bitAbsCoord
-                                            { width = toFloat <| 1 * scaleFactor
-                                            , height = toFloat <| 1 * scaleFactor
-                                            }
-                                        )
-                                        ([ SvgAttr.fill <| toRgbString fgColor
-                                         ]
-                                            ++ extrasPerPixel idx
-                                        )
-
-                                Zero ->
-                                    toSvgRect
-                                        (Rectangle.createFromPoint bitAbsCoord
-                                            { width = toFloat <| 1 * scaleFactor
-                                            , height = toFloat <| 1 * scaleFactor
-                                            }
-                                        )
-                                        ([ SvgAttr.fill <| toRgbString bgColor ] ++ extrasPerPixel idx)
-                        )
-                        glyphBitmap.bitmap
+            drawRawGlyphFromBitmap attrs colorPalettes cixl scaleFactor absScreenPoint extrasPerPixel glyphBitmap
 
         Nothing ->
             Svg.g [] []
@@ -417,6 +472,8 @@ type alias MainModel =
     , selectedFgIdx : Int
     , selectedBgIdx : Int
     , currentPalettes : ColorPalettes
+    , -- the startIdx  in the fontmap from where to start to show 16 shortcuts
+      glyphShortcutsStartIdx : Int
     }
 
 
@@ -497,6 +554,7 @@ initialModel =
     , selectedFgIdx = 1
     , selectedBgIdx = 0
     , currentPalettes = defaultPalettes
+    , glyphShortcutsStartIdx = 0
     }
 
 
@@ -518,6 +576,9 @@ type CanvasMessage
     | SelectTileColors TileCoordinate
     | TypeAction Char
     | Backspace -- dunno a better name
+    | NextGlyphShorCutsRow
+    | PreviousGlyphShorCutsRow
+    | PlaceGlyphFromShortCutIndex Int
     | Delete
 
 
@@ -601,6 +662,48 @@ keyToAction key editorMode =
 
                                     "Delete" ->
                                         CanvasAction Delete
+
+                                    "PageUp" ->
+                                        CanvasAction PreviousGlyphShorCutsRow
+
+                                    "PageDown" ->
+                                        CanvasAction NextGlyphShorCutsRow
+
+                                    "F1" ->
+                                        CanvasAction (PlaceGlyphFromShortCutIndex 0)
+
+                                    "F2" ->
+                                        CanvasAction (PlaceGlyphFromShortCutIndex 1)
+
+                                    "F3" ->
+                                        CanvasAction (PlaceGlyphFromShortCutIndex 2)
+
+                                    "F4" ->
+                                        CanvasAction (PlaceGlyphFromShortCutIndex 3)
+
+                                    "F5" ->
+                                        CanvasAction (PlaceGlyphFromShortCutIndex 4)
+
+                                    "F6" ->
+                                        CanvasAction (PlaceGlyphFromShortCutIndex 5)
+
+                                    "F7" ->
+                                        CanvasAction (PlaceGlyphFromShortCutIndex 6)
+
+                                    "F8" ->
+                                        CanvasAction (PlaceGlyphFromShortCutIndex 7)
+
+                                    "F9" ->
+                                        CanvasAction (PlaceGlyphFromShortCutIndex 8)
+
+                                    "F10" ->
+                                        CanvasAction (PlaceGlyphFromShortCutIndex 9)
+
+                                    "F11" ->
+                                        CanvasAction (PlaceGlyphFromShortCutIndex 10)
+
+                                    "F12" ->
+                                        CanvasAction (PlaceGlyphFromShortCutIndex 11)
 
                                     _ ->
                                         CanvasAction None
@@ -837,6 +940,32 @@ handleAction editorAction model =
                         Nothing ->
                             ( model, Cmd.none )
 
+                NextGlyphShorCutsRow ->
+                    ( { model | glyphShortcutsStartIdx = modBy 256 (model.glyphShortcutsStartIdx + 16) }, Cmd.none )
+
+                PreviousGlyphShorCutsRow ->
+                    ( { model | glyphShortcutsStartIdx = modBy 256 (model.glyphShortcutsStartIdx - 16) }, Cmd.none )
+
+                PlaceGlyphFromShortCutIndex shortCutIndex ->
+                    -- put the char on the canvas on the cursor position and move right when you can
+                    let
+                        canvasModel =
+                            model.canvasModel
+
+                        char =
+                            Char.fromCode <| model.glyphShortcutsStartIdx + shortCutIndex
+                    in
+                    ( { model
+                        | canvasModel =
+                            { canvasModel
+                                | cursor = moveCursor model.canvasModel.cursor model.canvasModel.gridSizeInTiles MoveRight
+                                , cixlBuffer = Dict.insert (xAndYToIndex model.canvasModel.gridSizeInTiles.width model.canvasModel.cursor.position) (Cixl char model.selectedFgIdx model.selectedBgIdx) canvasModel.cixlBuffer
+                            }
+                        , glyphToShowInEditor = char
+                      }
+                    , Cmd.none
+                    )
+
         Noop ->
             ( model, Cmd.none )
 
@@ -966,11 +1095,21 @@ view mainModel =
             [ lazy3 renderColorPalettes mainModel.currentPalettes mainModel.selectedFgIdx mainModel.selectedBgIdx
             , renderCanvasActionsPanel mainModel.canvasModel.currentCanvasTool
             , lazy3 renderCanvas mainModel.fontMap mainModel.currentPalettes mainModel.canvasModel
+            , lazy5 renderShortcutsGlyphSelector
+                mainModel.fontMap
+                mainModel.currentPalettes
+                mainModel.selectedFgIdx
+                mainModel.selectedBgIdx
+                mainModel.glyphShortcutsStartIdx
             , div
                 [ css [ backgroundColor (hex "#efefef") ]
                 ]
-                [ -- renderShortcutsGlyphSelector mainModel.fontMap mainModel.currentPalettes mainModel.selectedFgIdx mainModel.selectedBgIdx TODO
-                  lazy3 renderFontMap mainModel.fontMap mainModel.fontMapGridScale (Char.toCode mainModel.glyphToShowInEditor)
+                [ lazy4
+                    renderFontMap
+                    mainModel.fontMap
+                    mainModel.fontMapGridScale
+                    (Char.toCode mainModel.glyphToShowInEditor)
+                    mainModel.glyphShortcutsStartIdx
                 , lazy5 renderSelectedGlyphEditor mainModel.fontMap mainModel.currentPalettes mainModel.selectedFgIdx mainModel.selectedBgIdx mainModel.glyphToShowInEditor
                 , renderStatusBar mainModel.canvasModel.gridSizeInTiles mainModel.canvasModel.cursor.position (Char.toCode mainModel.glyphToShowInEditor) mainModel.editorMode mainModel.canvasModel.currentCanvasTool
                 ]
@@ -1025,7 +1164,8 @@ oneColorPalettes =
     }
 
 
-renderShortcutsGlyphSelector fontMap colorPalettes fgColorIndex bgColorIndex =
+renderShortcutsGlyphSelector : FontMap -> ColorPalettes -> Int -> Int -> Int -> Html msg
+renderShortcutsGlyphSelector fontMap colorPalettes fgColorIndex bgColorIndex glyphStartIdx =
     let
         scaleFactor =
             3
@@ -1034,33 +1174,57 @@ renderShortcutsGlyphSelector fontMap colorPalettes fgColorIndex bgColorIndex =
         [ css
             [ displayFlex
             , flexWrap wrap
+            , backgroundColor (rgb 150 150 150)
+            , alignItems flexStart
+            , flexDirection column
+            , width (px <| (scaleFactor * glyphSizeInPx) + 4)
+            , fontSize (px 8)
             ]
         ]
-        [ div [ css [ width (px <| scaleFactor * glyphSizeInPx), margin (px 2) ] ]
-            [ -- key shortcut
-              --   glyph
-              div [] [ text "F1" ]
-            , div []
-                [ Svg.svg
-                    [ SvgAttr.width <| String.fromFloat (glyphSizeInPx * scaleFactor)
-                    , SvgAttr.height <| String.fromFloat (glyphSizeInPx * scaleFactor)
-                    , SvgAttr.viewBox <|
-                        "0 0 "
-                            ++ String.fromFloat glyphSizeInPx
-                            ++ " "
-                            ++ String.fromFloat glyphSizeInPx
-                    ]
-                    [ drawRawGlyph []
-                        fontMap
-                        colorPalettes
-                        { glyph = '=', fgColorIndex = fgColorIndex, bgColorIndex = bgColorIndex }
-                        1
-                        Vector2.zeroVector
-                        (\_ -> [])
-                    ]
-                ]
-            ]
-        ]
+        (let
+            startIdx =
+                glyphStartIdx
+
+            shortCutsToShow =
+                Array.slice startIdx (startIdx + 16) fontMap
+
+            shortCutNumberToKey number =
+                if number <= 12 then
+                    "F" ++ String.fromInt number
+
+                else
+                    "C" ++ String.fromInt (number - 12)
+         in
+         Array.toList <|
+            Array.indexedMap
+                (\glyphIdx glyphBitmap ->
+                    div [ css [ width (px <| scaleFactor * glyphSizeInPx), margin (px 2) ] ]
+                        [ -- key shortcut
+                          --   glyph
+                          div [ css [ marginTop (px 2), marginBottom (px 1), textAlign center ] ] [ text <| shortCutNumberToKey (modBy 16 glyphIdx + 1) ]
+                        , div []
+                            [ Svg.svg
+                                [ SvgAttr.width <| String.fromFloat (glyphSizeInPx * scaleFactor)
+                                , SvgAttr.height <| String.fromFloat (glyphSizeInPx * scaleFactor)
+                                , SvgAttr.viewBox <|
+                                    "0 0 "
+                                        ++ String.fromFloat glyphSizeInPx
+                                        ++ " "
+                                        ++ String.fromFloat glyphSizeInPx
+                                ]
+                                [ drawRawGlyphFromBitmap []
+                                    colorPalettes
+                                    { glyph = Char.fromCode glyphIdx, fgColorIndex = fgColorIndex, bgColorIndex = bgColorIndex }
+                                    1
+                                    Vector2.zeroVector
+                                    (\_ -> [])
+                                    glyphBitmap
+                                ]
+                            ]
+                        ]
+                )
+                shortCutsToShow
+        )
 
 
 renderSelectedGlyphEditor fontMap colorPalettes fgColorIndex bgColorIndex char =
@@ -1349,6 +1513,16 @@ cursorCssAnimation =
         ]
 
 
+base64Encode : Bytes -> String
+base64Encode bytes =
+    Base64.Encode.encode (Base64.Encode.bytes bytes)
+
+
+base64Decode : String -> Result Base64.Decode.Error String
+base64Decode string =
+    Base64.Decode.decode Base64.Decode.string string
+
+
 paintSelectToolCursorDataImage =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAALBJREFUWIXtltEKgCAMRb3h///yetHStaS2pgleiBCJHXaWheAfam3GDgCBSGYAELYeAK0MB9AoaDrtAXDrVJMpFagDYCxA5igXwxUsAPMMgE0WvXxHh3dgATyZAe600v7WuQagOvul08ySKRQ0Y+2I9PTFebVZ+EjFTQRiBzyd88w3A193BKGzc56YipzVnZ3z/H8GvDuSZ+Co4u2cZ/vyH18FAMD8RTMlFad8Fy7X7EsvPkoF7m2hAAAAAElFTkSuQmCC"
 
@@ -1480,7 +1654,7 @@ fontMapCharCodes =
 -- renderFontMap : FontMap -> Int -> Html UpdateMsg
 
 
-renderFontMap fontMap fontMapGridScale selectedChar =
+renderFontMap fontMap fontMapGridScale selectedChar shortCutsSelectedStartIdx =
     -- this is very slow, you notice it when typing, dunno how to do an easy fix now, tried, keyed + lazy ,
     --  should solve this differently
     let
@@ -1503,7 +1677,7 @@ renderFontMap fontMap fontMapGridScale selectedChar =
     <|
         -- todo legend
         List.map
-            (renderFontGlyphAsSvg fontMap scaleFactor selectedChar)
+            (renderFontGlyphAsSvg fontMap scaleFactor selectedChar shortCutsSelectedStartIdx)
             fontMapCharCodes
 
 
@@ -1513,7 +1687,7 @@ renderFontMap fontMap fontMapGridScale selectedChar =
 -}
 
 
-renderFontGlyphAsSvg fontMap scaleFactor selectedChar charIdx =
+renderFontGlyphAsSvg fontMap scaleFactor selectedChar shortCutsSelectedStartIdx charIdx =
     Svg.svg
         [ -- The size on the screen
           SvgAttr.width <| String.fromFloat <| glyphSizeInPx * scaleFactor
@@ -1521,7 +1695,14 @@ renderFontGlyphAsSvg fontMap scaleFactor selectedChar charIdx =
         , SvgAttr.viewBox "0 0 8 8" -- zoom with viewport
         , SvgAttr.css
             [ margin (px 1)
-            , if charIdx == selectedChar then
+            , if charIdx < shortCutsSelectedStartIdx + 16 && charIdx >= shortCutsSelectedStartIdx then
+                if charIdx == selectedChar then
+                    border3 (px 1) dashed (rgb 255 100 250)
+
+                else
+                    border3 (px 1) dashed (rgb 0 200 200)
+
+              else if charIdx == selectedChar then
                 border3 (px 1) solid (rgb 255 50 250)
 
               else
