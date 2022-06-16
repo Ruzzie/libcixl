@@ -939,7 +939,7 @@ moveCursor currentCursor gridSizeInTiles direction =
 
 
 defaultTextStyle =
-    Css.batch [ fontFamilies [ "VT323", "monospace" ] ]
+    Css.batch [ fontFamilies [ "Web IBM CGAthin", "monospace" ], fontSize (px 12) ]
 
 
 view : MainModel -> Html UpdateMsg
@@ -953,15 +953,13 @@ view mainModel =
         [ Html.node "style"
             []
             [ text """
-                       /* latin */
                        @font-face {
-                         font-family: 'VT323';
+                         font-family: 'Web IBM CGAthin';
                          font-style: normal;
                          font-weight: 400;
-                         font-display: swap;
-                         src: url(https://fonts.gstatic.com/s/vt323/v17/pxiKyp0ihIEF2isfFJU.woff2) format('woff2');
-                         unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+                         src: url(Web437_IBM_CGAthin.woff) format('woff');
                        }
+                       
                        """
             ]
         , div [ css [ displayFlex, defaultTextStyle ] ]
@@ -1008,7 +1006,7 @@ activeToolToString activeTool =
 
 renderStatusBar canvasGridSize cursorPos selectedChar editorMode canvasTool =
     div
-        [ css [ fontSize (px 20), marginTop (px -3), paddingTop (px 11), paddingBottom (px 8), backgroundColor (rgb 15 15 15), color (rgb 215 215 215), textAlign center ]
+        [ css [ fontSize (px 12), marginTop (px -3), paddingTop (px 11), paddingBottom (px 8), backgroundColor (rgb 15 15 15), color (rgb 215 215 215), textAlign center ]
         ]
         [ div []
             [ div [ css [ paddingBottom (px 8) ] ] [ text <| String.fromInt selectedChar ++ " - 0x" ++ String.toUpper (Hex.toString selectedChar) ++ " - " ++ String.fromChar (Char.fromCode selectedChar) ]
@@ -1252,14 +1250,15 @@ renderColorPalettes colorPalettes selectedFgIdx selectedBgIdx =
                     , Html.Styled.Events.onInput (\hexColorStr -> PaletteColorPickerClicked ( Foreground, hexColorStr ))
                     ]
                     []
-               , span [ css [ display inlineBlock, width (px leftBarWidth), textAlign center, color (rgb 215 215 215), fontSize (px 20) ] ] [ text selectedFgColorHexStr ]
+               , span [ css [ display inlineBlock, width (px leftBarWidth), textAlign center, color (rgb 215 215 215) ] ] [ text selectedFgColorHexStr ]
                , label
                     [ for "fgColorPicker"
                     , css
                         [ color (rgb 175 175 175)
                         , width (px leftBarWidth)
-                        , margin (px 0)
+                        , marginTop (px 4)
                         , textAlign center
+                        , fontSize (pct 50)
                         ]
                     ]
                     [ text "^ foreground ^" ]
@@ -1315,14 +1314,15 @@ renderColorPalettes colorPalettes selectedFgIdx selectedBgIdx =
                     , Html.Styled.Events.onInput (\hexColorStr -> PaletteColorPickerClicked ( Background, hexColorStr ))
                     ]
                     []
-               , span [ css [ display inlineBlock, width (px leftBarWidth), textAlign center, color (rgb 215 215 215), fontSize (px 20) ] ] [ text selectedBgColorHexStr ]
+               , span [ css [ display inlineBlock, width (px leftBarWidth), textAlign center, color (rgb 215 215 215) ] ] [ text selectedBgColorHexStr ]
                , label
                     [ for "bgColorPicker"
                     , css
                         [ color (rgb 175 175 175)
                         , width (px leftBarWidth)
-                        , margin (px 0)
+                        , marginTop (px 4)
                         , textAlign center
+                        , fontSize (pct 50)
                         ]
                     ]
                     [ text "^ background ^" ]
