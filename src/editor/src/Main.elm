@@ -24,8 +24,7 @@ module Main exposing (..)
 -}
 {-
 
-    TODO  [ ]  Save , fontmap, canvas, colors
-    TODO  [ ]  Load , fontmap, canvas, colors
+    TODO [ ] Clear canvas button and or eraser tool
     TODO [ ] Save a Cixl as a data url, such that we can use them as icons in our own application
     TODO [ ] WriteString renders a string in a selected format, (mini cixl buffer) such that we can use our own system font as labels in the app (would be nice)
     TODO  [ ]  Tweak performance of fontmap rendering
@@ -38,6 +37,8 @@ module Main exposing (..)
     TODO  [ ]  Load .ans data (for fun)
 
    [X]  color palette editor (color pickers)
+   [X]  Save , fontmap, canvas, colors
+   [X]  Load , fontmap, canvas, colors
 
 -}
 
@@ -82,12 +83,18 @@ import Svg.Styled.Lazy
 import Task
 
 
-defaultText =
-    """
-ÉÍÍÍÍ»
-ºCIXLº
-ÈÍÍÍÍ¼
-"""
+
+{- defaultText =
+       """
+   ÉÍÍÍÍ»
+   ºCIXLº
+   ÈÍÍÍÍ¼
+   """
+-}
+
+
+defaultInitialStatAsCompressedString =
+    "AQAABvtVl11oHNcVgE-UrXxJFWkKAk-DkBYxD0sRZWubsA-Lu1a2VIY-JMUtIfRBNmVrg2jdEBIJhkXaOM1fjY3pgx1K6Usg-KnkoZS2oVtUlpS6oZAXtQ0mEIgL7oMhIXZg2cl3zrkzq5zdu_PNmXPPPffcc2dmHxLhKxLsV-RhWujvvbn35o29vnK7_99iv98GJcjWZJK3ElBC0sorlnZaFCEFXT9JWiB6SdumhYvizv6doiiUpb2-t7fuPov9d_r9d_ZNv3Lk0Xw0ykFs-vv7_bSv3UNt9kitNn4ASph75NGvfv75yoqyXMu3Rlv5NWPZ3O5vb4LKs8v95VlQAi4Q95OpSAYy7u-ffxwBme9fP1hdXXnR5kvrKyDWl54WW1gKKiCssuQsMlPMAAjcKToAAstwONSucNYrejYsLJohyFimOZxKSFTE9d1Vfl1CozHh0wDh_K38G7nz5q_OJ2vf_yUoobnR3PjFpW2QvNUqtyGpdzqduvtMuFILznKmlbfOQMohnPQpwiZmpBxTYozYIczgpN7ZBVGk2dqJTNMMJ00mEGsgzWpp3ddaWrW0Vov6eqPR9sGoh3qr0i_VW1npp80AZAJRP2mlh5ZKe72sreI6PzChJeYeJvw4AcZNuALB-QD_1kn5jZs3fxNrD_9tKgUh5ox44lhpVq-XMaCt9MRfL-dobAOY_Vppby5Ln8yqzA9LUSttGo1mo7TBSeWzu3Wm2-2CcHbixNpatCHOKifEw8AgbPolLUvXlz6X6tP8Www-d2JD4lhQtjgHwgx6ZqscN0vYQCC8urrIDgBhXaMY5xIOk2QJlDAckuiahiDhItokuQhiT_1vjSBjE90krHN5qvpUkwUq6wLEmNFX-UfPzEBlTbrH4BzzwISr_DOBqU_dzB6n6AJMbXQBQGXSX_lc7z2zvg4qZyfaZf6Jp8o_8UzHVX3Mv-qn47IAZcy2AKAy5mX-lcv8y_r6M71y3G4jacS1UK765uTf63Y-oeaTeZCdzPpoQ8KHJDdJPgTVfvOaeTdOs3XNPpwPdncHeWgqb8glxH3OJflgvOucZvlMf-CcyZTT2pSTQ3pi292NPulb-aFvxU1GLjmTlJB9XdjuU65NOZNWN497IT3Ec8mks92xG6uO-1j_wHZ86B8c3H5wcBvEPuPxEp8vPZlya27KaQaOvG9rDozcE8VZNQo9NY_2I9VHTvPRcJR7PSwfa243L3o8vTaPEX8ShvFoPLx1-5YuEvvxWHPcvAeydmk-249jPdZs8czyekBf-Z9PwWjTuz6GbSPBH392-z1n9-Ljek_nVNLmJmcI-ZnwbBqCxrMIKGF3d_fXM2EZNL66uFwDdU2ptrLeVruvxGdSEKj7CgTfjKL8gyjKWNhHuZTID2hT5kx5cXHxU9qiMm0MlvwlmxpWkU2UaeND-k9rY8jZCUbwA8E0PLpPZIGjChh8V8C0gnM98hsWaMa0ygb5sg1Wyox7lFbGczTRtxaYtpJwhaPq70dPqi_kfqU_WtrQCj4qqr9f2iCH9U4wDb3HQCu4ZvYcPAIYIU4Ipq0kK7bAxtiV9lVfpOCj18GYQZjGbF3P652JMk1A43tRlBeiKHNZr6tg_8L16y9A8NLjPYp7rAUaJuc2VUC1KXoIqPpm2jzntS3y7d7olr_ziBw_fvykbSq4YB_5vmun7R77UDdVYOtPfCvAvGfu9-6A7Nmvtw_56d24YUPBD-fvfZxrOPDJ4WR4ElLWvvuQ8sQ-KmRDX6PMiPtbjRug79m03qmnYqUYZP5rbCnPOYckuRrnqB0ZHQny_Af6VQntnoZuwvPdbyaIWcaTsDA3N_f_LX--PHl-Y4OjSrjXHGo-VNS-jXDgnT8KnLAUd-_e_cf79Y-ekp1TUpx9-436zuDUJz__5FTrgpx9_6OnBkVd3t7Z2Tl9-jQdEI2dE1Rc4DJGmNKBbnTGBY5wh1NcMwD23-0MNASRvwfpDNSDyD8VfQ6G9hB1tPdbR32KiPwJfNEn9kfFJwGRJ74CPg0Q0COgpVKengHPAyLfOwLaC4h1u-Q3rXcVrwI-xKXrQMTfAhHfAiL-DhD588KRzkvvAiLfeUg6L_0LEPmx4gEgckHRHrfynOL_AJGfKfo6PKvoW-hH-H3Z8_BDtC97Hr6l6Hn4pqLnoQm-6kGeo9urHuQO-JpH9h_-gbz2B0Dkb4pWso4er6HHa-jxGnq8hh6vocdr6PEqvs4RMfTV_Iui27KvOq-7bXdhvmP_SniZUnTbJxR9xs8q-ozPKvqMe4o-4-cUfeUvKFpty08V_Y_WTxS9HnTgy27LvDuX3VaDvOy2hm5r6LVj6LVj6LVj6LVj6LVjaPcHR_vr4-gV9W_wiuf3GIt1xfOr63bF82tazy_4BQ"
 
 
 lineToCixlBufferEntries : Int -> Int -> Int -> String -> List ( Int, Cixl )
@@ -747,22 +754,24 @@ main =
 
 initialModel : MainModel
 initialModel =
-    { fontMap = defaultFontMap
-    , fontMapGridScale = 3
-    , editorMode = CanvasMode
-    , canvasModel =
-        { cursor = { position = { x = 0, y = 0 } }
-        , gridSizeInTiles = { width = 40, height = 30 }
-        , cixlBuffer = textToCixlBuffer { x = 17, y = 13 } 40 defaultText
-        , scaleFactor = 4
-        , currentCanvasTool = TypingTool
+    loadFromCompressedString
+        { fontMap = defaultFontMap
+        , fontMapGridScale = 3
+        , editorMode = CanvasMode
+        , canvasModel =
+            { cursor = { position = { x = 0, y = 0 } }
+            , gridSizeInTiles = { width = 40, height = 30 }
+            , cixlBuffer = textToCixlBuffer { x = 17, y = 13 } 40 ""
+            , scaleFactor = 4
+            , currentCanvasTool = TypingTool
+            }
+        , glyphToShowInEditor = Char.fromCode 0
+        , selectedFgIdx = 1
+        , selectedBgIdx = 0
+        , currentPalettes = defaultPalettes
+        , glyphShortcutsStartIdx = 0
         }
-    , glyphToShowInEditor = Char.fromCode 0
-    , selectedFgIdx = 1
-    , selectedBgIdx = 0
-    , currentPalettes = defaultPalettes
-    , glyphShortcutsStartIdx = 0
-    }
+        defaultInitialStatAsCompressedString
 
 
 type NavigationAction
