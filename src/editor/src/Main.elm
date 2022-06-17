@@ -56,6 +56,10 @@ import Css exposing (..)
 import Css.Animations exposing (keyframes)
 import Dict exposing (Dict)
 import Events
+import File exposing (File)
+import File.Download
+import File.Select
+import Flate
 import Graphics.Shapes.Rectangle as Rectangle
 import Graphics.Vector2 as Vector2
 import Hex
@@ -65,9 +69,11 @@ import Html.Styled.Attributes exposing (css, for, id, name, tabindex, title, typ
 import Html.Styled.Events
 import Html.Styled.Lazy exposing (lazy3, lazy4, lazy5)
 import Json.Decode as Decode
+import Json.Encode
 import Keyboard.Event exposing (KeyboardEvent)
 import Keyboard.Key exposing (Key(..))
 import PixelFonts
+import Serialize as S
 import Svg.Styled as Svg
 import Svg.Styled.Attributes as SvgAttr
 import Svg.Styled.Events
@@ -246,8 +252,8 @@ bitIsSet bit value =
         Zero
 
 
-byteToBitmap : Int -> List Bit
-byteToBitmap byte =
+byteToBits : Int -> List Bit
+byteToBits byte =
     -- msb ------ lsb
     [ bitIsSet 128 byte
     , bitIsSet 64 byte
@@ -269,6 +275,7 @@ bitToInt bit =
             1
 
 
+bitsToByte : Array Bit -> Int
 bitsToByte arrayOf8Bits =
     let
         indexedList =
@@ -291,7 +298,7 @@ this represents 8x8 pixels
 -}
 bytesToGlyphBitmap : List Int -> GlyphBitmap
 bytesToGlyphBitmap bytes =
-    { bitmap = Array.fromList <| List.concatMap (\byte -> byteToBitmap byte) bytes
+    { bitmap = Array.fromList <| List.concatMap (\byte -> byteToBits byte) bytes
     }
 
 
@@ -334,6 +341,54 @@ fromPixelFontDefinition bytes =
 -}
 
 
+fontMapToCommaSeparatedHexString fontMap =
+    let
+        glyph : Array Bit -> List String
+        glyph glyphBitmap =
+            chunkConcat (\chunk -> String.padRight 4 ' ' ("0x" ++ String.toUpper (Hex.toString <| bitsToByte (Array.fromList chunk))) ++ ", ") 8 (Array.toList glyphBitmap)
+    in
+    String.concat
+        (List.concatMap (\( idx, g ) -> glyph g.bitmap ++ [ " // char ", String.fromInt idx, "\n" ]) (Array.toIndexedList fontMap))
+
+
+fontMapToCHeader : FontMap -> String
+fontMapToCHeader fontMap =
+    """
+// ·————·
+// |CIXL|
+// ·————·
+//  Font
+        
+unsigned char font[2048] =
+{
+
+        """
+        ++ fontMapToCommaSeparatedHexString fontMap
+        ++ "};"
+
+
+fontMapToCSharp : FontMap -> String
+fontMapToCSharp fontMap =
+    """
+namespace Cixl;
+// ·————·
+// |CIXL|
+// ·————·
+//  Font
+        
+public static class Fonts
+{
+    static readonly byte[] font =
+    {
+
+        """
+        ++ fontMapToCommaSeparatedHexString fontMap
+        ++ """
+    };
+}    
+    """
+
+
 defaultFontMap : FontMap
 defaultFontMap =
     Array.fromList <| fromPixelFontDefinition PixelFonts.tinyType
@@ -341,6 +396,151 @@ defaultFontMap =
 
 fantasyFontMap =
     Array.fromList <| fromPixelFontDefinition PixelFonts.fantasyType
+
+
+
+--- CODECS
+
+
+bitmapArrayCodec : S.Codec e (Array Bit)
+bitmapArrayCodec =
+    let
+        list : Array Bit -> List Int
+        list c =
+            chunkConcat (\chunk -> bitsToByte (Array.fromList chunk)) 8 (Array.toList c)
+    in
+    S.array
+        S.byte
+        |> S.map
+            (\bytes -> Array.fromList (List.concatMap byteToBits (Array.toList bytes)))
+            (\bitArray -> Array.fromList <| list bitArray)
+
+
+glyphBitmapCodec : S.Codec e GlyphBitmap
+glyphBitmapCodec =
+    S.record GlyphBitmap
+        |> S.field .bitmap bitmapArrayCodec
+        |> S.finishRecord
+
+
+fontMapCodec : S.Codec e FontMap
+fontMapCodec =
+    S.array glyphBitmapCodec
+
+
+
+-- Canvas
+-- ColorPalette
+
+
+colorDefinitionCodec : S.Codec e ColorDefinition
+colorDefinitionCodec =
+    S.record ColorDefinition
+        |> S.field .red S.byte
+        |> S.field .green S.byte
+        |> S.field .blue S.byte
+        |> S.finishRecord
+
+
+colorPalettesCodec : S.Codec e ColorPalettes
+colorPalettesCodec =
+    S.record ColorPalettes
+        |> S.field .fg (S.array colorDefinitionCodec)
+        |> S.field .bg (S.array colorDefinitionCodec)
+        |> S.finishRecord
+
+
+charByteCodec : S.Codec e Char
+charByteCodec =
+    S.byte
+        |> S.map (\byte -> Char.fromCode byte) (\char -> Char.toCode char)
+
+
+cixlCodec : S.Codec e Cixl
+cixlCodec =
+    S.record Cixl
+        |> S.field .glyph charByteCodec
+        |> S.field .fgColorIndex S.byte
+        |> S.field .bgColorIndex S.byte
+        |> S.finishRecord
+
+
+cixlBufferCodec : S.Codec e CanvasCixlBuffer
+cixlBufferCodec =
+    S.dict S.int cixlCodec
+
+
+type alias CixlDataWrapper =
+    { fontMap : FontMap
+    , colorPalettes : ColorPalettes
+    , buffer : CanvasCixlBuffer
+    }
+
+
+cixlDataWrapperCodec : S.Codec e CixlDataWrapper
+cixlDataWrapperCodec =
+    S.record CixlDataWrapper
+        |> S.field .fontMap fontMapCodec
+        |> S.field .colorPalettes colorPalettesCodec
+        |> S.field .buffer cixlBufferCodec
+        |> S.finishRecord
+
+
+saveData : FontMap -> ColorPalettes -> CanvasCixlBuffer -> (S.Codec e CixlDataWrapper -> CixlDataWrapper -> a) -> a
+saveData fontMap colorPalettes buffer encodeFormatFunc =
+    encodeFormatFunc cixlDataWrapperCodec (CixlDataWrapper fontMap colorPalettes buffer)
+
+
+saveDataToString : MainModel -> String
+saveDataToString mainModel =
+    saveData mainModel.fontMap mainModel.currentPalettes mainModel.canvasModel.cixlBuffer S.encodeToString
+
+
+saveDataToJsonString : MainModel -> String
+saveDataToJsonString mainModel =
+    Json.Encode.encode 4
+        (saveData mainModel.fontMap mainModel.currentPalettes mainModel.canvasModel.cixlBuffer S.encodeToJson)
+
+
+
+-- compress
+
+
+saveToCompressedString : MainModel -> String
+saveToCompressedString mainModel =
+    -- Maybe.andThen (\bytes -> Just (S.encodeToString S.bytes bytes))
+    S.encodeToString S.bytes
+        (Flate.deflate
+            (saveData mainModel.fontMap mainModel.currentPalettes mainModel.canvasModel.cixlBuffer S.encodeToBytes)
+        )
+
+
+loadFromCompressedString : MainModel -> String -> MainModel
+loadFromCompressedString modelToUpdate compressedString =
+    -- decode the bytes from the string (these are still compressed)
+    -- for now we ignore all errors
+    case S.decodeFromString S.bytes compressedString of
+        Ok bytes ->
+            -- decompress the bytes
+            case Flate.inflate bytes of
+                Just decompressedBytes ->
+                    -- decode the bytes to real data
+                    case S.decodeFromBytes cixlDataWrapperCodec decompressedBytes of
+                        Ok cxlData ->
+                            let
+                                canvasModel =
+                                    modelToUpdate.canvasModel
+                            in
+                            { modelToUpdate | fontMap = cxlData.fontMap, currentPalettes = cxlData.colorPalettes, canvasModel = { canvasModel | cixlBuffer = cxlData.buffer } }
+
+                        Err _ ->
+                            modelToUpdate
+
+                Nothing ->
+                    modelToUpdate
+
+        Err _ ->
+            modelToUpdate
 
 
 type alias TileCoordinate =
@@ -493,6 +693,13 @@ type UpdateMsg
     | GlyphEditorPixelClicked Int
     | FontMapGlyphClicked Int
     | PaletteColorPickerClicked ( PaletteType, String )
+    | SaveClick
+    | SaveJsonClick
+    | LoadClick
+    | CxlFileSelected File
+    | CxlLoadFromString String
+    | ExportFontMapToCsharp
+    | ExportFontMapToCHeader
 
 
 type alias Cursor =
@@ -540,7 +747,7 @@ main =
 
 initialModel : MainModel
 initialModel =
-    { fontMap = fantasyFontMap
+    { fontMap = defaultFontMap
     , fontMapGridScale = 3
     , editorMode = CanvasMode
     , canvasModel =
@@ -625,91 +832,91 @@ keyToAction key editorMode =
                 _ ->
                     Nothing
     in
-    Debug.log key <|
-        case editorMode of
-            CanvasMode ->
-                case moveAction of
-                    Just move ->
-                        CanvasAction (MoveCanvasCursor move)
+    {- Debug.log key <| -}
+    case editorMode of
+        CanvasMode ->
+            case moveAction of
+                Just move ->
+                    CanvasAction (MoveCanvasCursor move)
 
-                    Nothing ->
-                        case String.length key of
-                            1 ->
-                                -- pattern match on when the list only has one element
-                                -- no move could be type action when one char
-                                if String.length key == 1 then
-                                    let
-                                        maybeAsciiChar =
-                                            Maybe.andThen
-                                                (\chr ->
-                                                    if Char.toCode chr <= 255 then
-                                                        Just (TypeAction chr)
+                Nothing ->
+                    case String.length key of
+                        1 ->
+                            -- pattern match on when the list only has one element
+                            -- no move could be type action when one char
+                            if String.length key == 1 then
+                                let
+                                    maybeAsciiChar =
+                                        Maybe.andThen
+                                            (\chr ->
+                                                if Char.toCode chr <= 255 then
+                                                    Just (TypeAction chr)
 
-                                                    else
-                                                        Nothing
-                                                )
-                                                (List.head (String.toList key))
-                                    in
-                                    CanvasAction (Maybe.withDefault None maybeAsciiChar)
+                                                else
+                                                    Nothing
+                                            )
+                                            (List.head (String.toList key))
+                                in
+                                CanvasAction (Maybe.withDefault None maybeAsciiChar)
 
-                                else
+                            else
+                                CanvasAction None
+
+                        _ ->
+                            case key of
+                                "Backspace" ->
+                                    CanvasAction Backspace
+
+                                "Delete" ->
+                                    CanvasAction Delete
+
+                                "PageUp" ->
+                                    CanvasAction PreviousGlyphShorCutsRow
+
+                                "PageDown" ->
+                                    CanvasAction NextGlyphShorCutsRow
+
+                                "F1" ->
+                                    CanvasAction (PlaceGlyphFromShortCutIndex 0)
+
+                                "F2" ->
+                                    CanvasAction (PlaceGlyphFromShortCutIndex 1)
+
+                                "F3" ->
+                                    CanvasAction (PlaceGlyphFromShortCutIndex 2)
+
+                                "F4" ->
+                                    CanvasAction (PlaceGlyphFromShortCutIndex 3)
+
+                                "F5" ->
+                                    CanvasAction (PlaceGlyphFromShortCutIndex 4)
+
+                                "F6" ->
+                                    CanvasAction (PlaceGlyphFromShortCutIndex 5)
+
+                                "F7" ->
+                                    CanvasAction (PlaceGlyphFromShortCutIndex 6)
+
+                                "F8" ->
+                                    CanvasAction (PlaceGlyphFromShortCutIndex 7)
+
+                                "F9" ->
+                                    CanvasAction (PlaceGlyphFromShortCutIndex 8)
+
+                                "F10" ->
+                                    CanvasAction (PlaceGlyphFromShortCutIndex 9)
+
+                                "F11" ->
+                                    CanvasAction (PlaceGlyphFromShortCutIndex 10)
+
+                                "F12" ->
+                                    CanvasAction (PlaceGlyphFromShortCutIndex 11)
+
+                                _ ->
                                     CanvasAction None
 
-                            _ ->
-                                case key of
-                                    "Backspace" ->
-                                        CanvasAction Backspace
-
-                                    "Delete" ->
-                                        CanvasAction Delete
-
-                                    "PageUp" ->
-                                        CanvasAction PreviousGlyphShorCutsRow
-
-                                    "PageDown" ->
-                                        CanvasAction NextGlyphShorCutsRow
-
-                                    "F1" ->
-                                        CanvasAction (PlaceGlyphFromShortCutIndex 0)
-
-                                    "F2" ->
-                                        CanvasAction (PlaceGlyphFromShortCutIndex 1)
-
-                                    "F3" ->
-                                        CanvasAction (PlaceGlyphFromShortCutIndex 2)
-
-                                    "F4" ->
-                                        CanvasAction (PlaceGlyphFromShortCutIndex 3)
-
-                                    "F5" ->
-                                        CanvasAction (PlaceGlyphFromShortCutIndex 4)
-
-                                    "F6" ->
-                                        CanvasAction (PlaceGlyphFromShortCutIndex 5)
-
-                                    "F7" ->
-                                        CanvasAction (PlaceGlyphFromShortCutIndex 6)
-
-                                    "F8" ->
-                                        CanvasAction (PlaceGlyphFromShortCutIndex 7)
-
-                                    "F9" ->
-                                        CanvasAction (PlaceGlyphFromShortCutIndex 8)
-
-                                    "F10" ->
-                                        CanvasAction (PlaceGlyphFromShortCutIndex 9)
-
-                                    "F11" ->
-                                        CanvasAction (PlaceGlyphFromShortCutIndex 10)
-
-                                    "F12" ->
-                                        CanvasAction (PlaceGlyphFromShortCutIndex 11)
-
-                                    _ ->
-                                        CanvasAction None
-
-            _ ->
-                Noop
+        _ ->
+            Noop
 
 
 subscriptions : MainModel -> Sub UpdateMsg
@@ -838,6 +1045,27 @@ update updateMsg model =
                     fromCss (hex hexColorString)
             in
             handleAction (ColorPalettesAction (UpdateCurrentSelectedColor ( paletteType, color ))) model
+
+        SaveClick ->
+            ( model, File.Download.string "cixlEditor.cxl" "text/cxl" (saveToCompressedString model) )
+
+        SaveJsonClick ->
+            ( model, File.Download.string "cixlEditor.json" "application/json" (saveDataToJsonString model) )
+
+        LoadClick ->
+            ( model, File.Select.file [ "text/cxl", "cxl" ] CxlFileSelected )
+
+        CxlFileSelected file ->
+            ( model, Task.perform CxlLoadFromString (File.toString file) )
+
+        CxlLoadFromString compressedString ->
+            ( loadFromCompressedString model compressedString, Cmd.none )
+
+        ExportFontMapToCsharp ->
+            ( model, File.Download.string "Font.cs" "text/plain" (fontMapToCSharp model.fontMap) )
+
+        ExportFontMapToCHeader ->
+            ( model, File.Download.string "font.h" "text/plain" (fontMapToCHeader model.fontMap) )
 
 
 handleAction : EditorModeAction -> MainModel -> ( MainModel, Cmd UpdateMsg )
@@ -1088,6 +1316,11 @@ view mainModel =
                          font-weight: 400;
                          src: url(Web437_IBM_CGAthin.woff) format('woff');
                        }
+                       button {
+                        font-family: 'Web IBM CGAthin';
+                        font-weight: bold;
+                        height: 24px;
+                       }
                        
                        """
             ]
@@ -1150,8 +1383,9 @@ renderStatusBar canvasGridSize cursorPos selectedChar editorMode canvasTool =
         [ div []
             [ div [ css [ paddingBottom (px 8) ] ] [ text <| String.fromInt selectedChar ++ " - 0x" ++ String.toUpper (Hex.toString selectedChar) ++ " - " ++ String.fromChar (Char.fromCode selectedChar) ]
             , div []
-                [ span [ css [ width (ch 24), display inlineBlock ] ] [ text <| editorModeToString editorMode ++ " | " ++ activeToolToString canvasTool ++ " | " ]
-                , span [ css [ width (ch 8), display inlineBlock ] ] [ text <| String.fromInt canvasGridSize.width ++ "x" ++ String.fromInt canvasGridSize.height ++ " | " ]
+                [ span [ css [ width (ch 12), display inlineBlock ] ] [ text <| editorModeToString editorMode ++ " | " ]
+                , span [ css [ width (ch 10), display inlineBlock ] ] [ text <| activeToolToString canvasTool ]
+                , span [ css [ width (ch 10), display inlineBlock ] ] [ text <| " | " ++ String.fromInt canvasGridSize.width ++ "x" ++ String.fromInt canvasGridSize.height ++ " | " ]
                 , span [ css [ width (ch 5), display inlineBlock ] ] [ text <| String.fromInt cursorPos.y ++ ":" ++ String.fromInt cursorPos.x ]
                 ]
             ]
@@ -1282,6 +1516,98 @@ renderCanvasActionsPanel currentTool =
             (currentTool == SelectColorTool)
             [ Html.Styled.Attributes.fromUnstyled <| Html.Events.Extra.Pointer.onDown (\_ -> HandleToolBarClick SelectColorTool) ]
         , hr [ css [ width (px <| (24 * 2) - 2) ] ] []
+        , div []
+            [ button
+                [ css
+                    [ fontSize (px 8)
+                    , width (px 64)
+                    , backgroundColor (rgb 150 150 150)
+                    , border3 (px 4) outset (rgb 150 150 150)
+                    , hover [ border3 (px 4) outset (rgb 250 250 250) ]
+                    , cursor pointer
+                    , active
+                        [ border3 (px 4) inset (rgb 250 250 250)
+                        ]
+                    , padding (px 0)
+                    ]
+                , Html.Styled.Events.onClick SaveClick
+                ]
+                [ text "save" ]
+            ]
+        , div []
+            [ button
+                [ css
+                    [ fontSize (px 8)
+                    , width (px 64)
+                    , backgroundColor (rgb 150 150 150)
+                    , border3 (px 4) outset (rgb 150 150 150)
+                    , hover [ border3 (px 4) outset (rgb 250 250 250) ]
+                    , cursor pointer
+                    , active
+                        [ border3 (px 4) inset (rgb 250 250 250)
+                        ]
+                    , padding (px 0)
+                    ]
+                , Html.Styled.Events.onClick SaveJsonClick
+                ]
+                [ text "sv json" ]
+            ]
+        , div []
+            [ button
+                [ css
+                    [ fontSize (px 8)
+                    , width (px 64)
+                    , backgroundColor (rgb 150 150 150)
+                    , border3 (px 4) outset (rgb 150 150 150)
+                    , hover [ border3 (px 4) outset (rgb 250 250 250) ]
+                    , cursor pointer
+                    , active
+                        [ border3 (px 4) inset (rgb 250 250 250)
+                        ]
+                    , padding (px 0)
+                    ]
+                , title "Export font ap to CSharp  file"
+                , Html.Styled.Events.onClick ExportFontMapToCsharp
+                ]
+                [ text "fnt .cs" ]
+            ]
+        , div []
+            [ button
+                [ css
+                    [ fontSize (px 8)
+                    , width (px 64)
+                    , backgroundColor (rgb 150 150 150)
+                    , border3 (px 4) outset (rgb 150 150 150)
+                    , hover [ border3 (px 4) outset (rgb 250 250 250) ]
+                    , cursor pointer
+                    , active
+                        [ border3 (px 4) inset (rgb 250 250 250)
+                        ]
+                    , padding (px 0)
+                    ]
+                , title "Export fontmap to C header file"
+                , Html.Styled.Events.onClick ExportFontMapToCHeader
+                ]
+                [ text "fnt .h" ]
+            ]
+        , div []
+            [ button
+                [ css
+                    [ fontSize (px 8)
+                    , width (px 64)
+                    , backgroundColor (rgb 150 150 150)
+                    , border3 (px 4) outset (rgb 150 150 150)
+                    , hover [ border3 (px 4) outset (rgb 250 250 250) ]
+                    , cursor pointer
+                    , active
+                        [ border3 (px 4) inset (rgb 250 250 250)
+                        ]
+                    , padding (px 0)
+                    ]
+                , Html.Styled.Events.onClick LoadClick
+                ]
+                [ text "load" ]
+            ]
         ]
 
 
