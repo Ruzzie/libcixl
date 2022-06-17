@@ -50,9 +50,7 @@ import Browser
 import Browser.Dom as Dom
 import Browser.Events
 import Bytes exposing (Bytes)
-import Bytes.Decode
 import Bytes.Encode
-import Cbor.Encode
 import Css exposing (..)
 import Css.Animations exposing (keyframes)
 import Dict exposing (Dict)
@@ -83,16 +81,6 @@ import Svg.Styled.Lazy
 import Task
 
 
-
-{- defaultText =
-       """
-   ÉÍÍÍÍ»
-   ºCIXLº
-   ÈÍÍÍÍ¼
-   """
--}
-
-
 defaultInitialStatAsCompressedString =
     "AQAABvtVl11oHNcVgE-UrXxJFWkKAk-DkBYxD0sRZWubsA-Lu1a2VIY-JMUtIfRBNmVrg2jdEBIJhkXaOM1fjY3pgx1K6Usg-KnkoZS2oVtUlpS6oZAXtQ0mEIgL7oMhIXZg2cl3zrkzq5zdu_PNmXPPPffcc2dmHxLhKxLsV-RhWujvvbn35o29vnK7_99iv98GJcjWZJK3ElBC0sorlnZaFCEFXT9JWiB6SdumhYvizv6doiiUpb2-t7fuPov9d_r9d_ZNv3Lk0Xw0ykFs-vv7_bSv3UNt9kitNn4ASph75NGvfv75yoqyXMu3Rlv5NWPZ3O5vb4LKs8v95VlQAi4Q95OpSAYy7u-ffxwBme9fP1hdXXnR5kvrKyDWl54WW1gKKiCssuQsMlPMAAjcKToAAstwONSucNYrejYsLJohyFimOZxKSFTE9d1Vfl1CozHh0wDh_K38G7nz5q_OJ2vf_yUoobnR3PjFpW2QvNUqtyGpdzqduvtMuFILznKmlbfOQMohnPQpwiZmpBxTYozYIczgpN7ZBVGk2dqJTNMMJ00mEGsgzWpp3ddaWrW0Vov6eqPR9sGoh3qr0i_VW1npp80AZAJRP2mlh5ZKe72sreI6PzChJeYeJvw4AcZNuALB-QD_1kn5jZs3fxNrD_9tKgUh5ox44lhpVq-XMaCt9MRfL-dobAOY_Vppby5Ln8yqzA9LUSttGo1mo7TBSeWzu3Wm2-2CcHbixNpatCHOKifEw8AgbPolLUvXlz6X6tP8Www-d2JD4lhQtjgHwgx6ZqscN0vYQCC8urrIDgBhXaMY5xIOk2QJlDAckuiahiDhItokuQhiT_1vjSBjE90krHN5qvpUkwUq6wLEmNFX-UfPzEBlTbrH4BzzwISr_DOBqU_dzB6n6AJMbXQBQGXSX_lc7z2zvg4qZyfaZf6Jp8o_8UzHVX3Mv-qn47IAZcy2AKAy5mX-lcv8y_r6M71y3G4jacS1UK765uTf63Y-oeaTeZCdzPpoQ8KHJDdJPgTVfvOaeTdOs3XNPpwPdncHeWgqb8glxH3OJflgvOucZvlMf-CcyZTT2pSTQ3pi292NPulb-aFvxU1GLjmTlJB9XdjuU65NOZNWN497IT3Ec8mks92xG6uO-1j_wHZ86B8c3H5wcBvEPuPxEp8vPZlya27KaQaOvG9rDozcE8VZNQo9NY_2I9VHTvPRcJR7PSwfa243L3o8vTaPEX8ShvFoPLx1-5YuEvvxWHPcvAeydmk-249jPdZs8czyekBf-Z9PwWjTuz6GbSPBH392-z1n9-Ljek_nVNLmJmcI-ZnwbBqCxrMIKGF3d_fXM2EZNL66uFwDdU2ptrLeVruvxGdSEKj7CgTfjKL8gyjKWNhHuZTID2hT5kx5cXHxU9qiMm0MlvwlmxpWkU2UaeND-k9rY8jZCUbwA8E0PLpPZIGjChh8V8C0gnM98hsWaMa0ygb5sg1Wyox7lFbGczTRtxaYtpJwhaPq70dPqi_kfqU_WtrQCj4qqr9f2iCH9U4wDb3HQCu4ZvYcPAIYIU4Ipq0kK7bAxtiV9lVfpOCj18GYQZjGbF3P652JMk1A43tRlBeiKHNZr6tg_8L16y9A8NLjPYp7rAUaJuc2VUC1KXoIqPpm2jzntS3y7d7olr_ziBw_fvykbSq4YB_5vmun7R77UDdVYOtPfCvAvGfu9-6A7Nmvtw_56d24YUPBD-fvfZxrOPDJ4WR4ElLWvvuQ8sQ-KmRDX6PMiPtbjRug79m03qmnYqUYZP5rbCnPOYckuRrnqB0ZHQny_Af6VQntnoZuwvPdbyaIWcaTsDA3N_f_LX--PHl-Y4OjSrjXHGo-VNS-jXDgnT8KnLAUd-_e_cf79Y-ekp1TUpx9-436zuDUJz__5FTrgpx9_6OnBkVd3t7Z2Tl9-jQdEI2dE1Rc4DJGmNKBbnTGBY5wh1NcMwD23-0MNASRvwfpDNSDyD8VfQ6G9hB1tPdbR32KiPwJfNEn9kfFJwGRJ74CPg0Q0COgpVKengHPAyLfOwLaC4h1u-Q3rXcVrwI-xKXrQMTfAhHfAiL-DhD588KRzkvvAiLfeUg6L_0LEPmx4gEgckHRHrfynOL_AJGfKfo6PKvoW-hH-H3Z8_BDtC97Hr6l6Hn4pqLnoQm-6kGeo9urHuQO-JpH9h_-gbz2B0Dkb4pWso4er6HHa-jxGnq8hh6vocdr6PEqvs4RMfTV_Iui27KvOq-7bXdhvmP_SniZUnTbJxR9xs8q-ozPKvqMe4o-4-cUfeUvKFpty08V_Y_WTxS9HnTgy27LvDuX3VaDvOy2hm5r6LVj6LVj6LVj6LVj6LVjaPcHR_vr4-gV9W_wiuf3GIt1xfOr63bF82tazy_4BQ"
 
@@ -119,50 +107,6 @@ textToCixlBuffer offset gridWidth text =
                 ( offset.y, [] )
                 (String.lines text)
             )
-
-
-
--- ELM FORMAT CANNOT HANDLE ANSI ESCAPE CODES IN DECLARED STRING
-{-
-   TODO MAP .ANS TO GRID
-   ansiColorToColorIndex : Maybe Ansi.Color -> unknown
-   ansiColorToColorIndex ansiColor =
-
-
-
-   ansiLineToCixlBufferEntries : Int -> Ansi.Log.Line -> List (Int, Cixl)
-   ansiLineToCixlBufferEntries gridWidth (chunks, lineNumber) =
-       List.map (\chunk ->
-                           chunk.style
-                           chunk.text) chunks
-
-   doAnsiShizzle ansiText =
-
-       let model =
-                   Ansi.Log.update exampleAnsiText (Ansi.Log.init Cooked )
-       in
-          Array.map (\ansiLine -> ansiLineToCixlBufferEntries) model.lines
-
-       -- this returns a list of actions like, setbold, movecursor etc
-       -- we are only interested in a subset
-       -- Ansi.parse ansiText
--}
-{-
-
-   toEncoder : Person -> Encode.Encoder
-       toEncoder person =
-         Encode.sequence
-           [ Encode.unsignedInt16 BE person.age
-           , Encode.unsignedInt16 BE (Encode.getStringWidth person.name)
-           , Encode.string person.name
-           ]
-
-       -- encode (toEncoder (Person 33 "Tom")) == <00210003546F6D>
--}
-
-
-saveAsBytes =
-    Bytes.Encode.bytes
 
 
 type Bit
@@ -700,6 +644,7 @@ type UpdateMsg
     | GlyphEditorPixelClicked Int
     | FontMapGlyphClicked Int
     | PaletteColorPickerClicked ( PaletteType, String )
+    | ClearCanvasButtonClick
     | SaveClick
     | SaveJsonClick
     | LoadClick
@@ -796,6 +741,7 @@ type CanvasMessage
     | PreviousGlyphShorCutsRow
     | PlaceGlyphFromShortCutIndex Int
     | Delete
+    | ClearCanvas
 
 
 type GlyphEditorMessage
@@ -930,7 +876,6 @@ keyToAction key editorMode =
 
 subscriptions : MainModel -> Sub UpdateMsg
 subscriptions model =
-    {- Sub.none -}
     Browser.Events.onKeyDown
         keyDecoder
 
@@ -1054,6 +999,9 @@ update updateMsg model =
                     fromCss (hex hexColorString)
             in
             handleAction (ColorPalettesAction (UpdateCurrentSelectedColor ( paletteType, color ))) model
+
+        ClearCanvasButtonClick ->
+            handleAction (CanvasAction ClearCanvas) model
 
         SaveClick ->
             ( model, File.Download.string "cixlEditor.cxl" "text/cxl" (saveToCompressedString model) )
@@ -1202,6 +1150,13 @@ handleAction editorAction model =
                       }
                     , Cmd.none
                     )
+
+                ClearCanvas ->
+                    let
+                        canvasModel =
+                            model.canvasModel
+                    in
+                    ( { model | canvasModel = { canvasModel | cixlBuffer = Dict.empty } }, Cmd.none )
 
         Noop ->
             ( model, Cmd.none )
@@ -1501,6 +1456,29 @@ renderSelectedGlyphEditor fontMap colorPalettes fgColorIndex bgColorIndex char =
         ]
 
 
+actionButton attrs label clickMsg =
+    div []
+        [ button
+            ([ css
+                [ fontSize (px 8)
+                , width (px 64)
+                , backgroundColor (rgb 150 150 150)
+                , border3 (px 4) outset (rgb 150 150 150)
+                , hover [ border3 (px 4) outset (rgb 250 250 250) ]
+                , cursor pointer
+                , active
+                    [ border3 (px 4) inset (rgb 250 250 250)
+                    ]
+                , padding (px 0)
+                ]
+             , Html.Styled.Events.onClick clickMsg
+             ]
+                ++ attrs
+            )
+            [ text label ]
+        ]
+
+
 renderCanvasActionsPanel currentTool =
     div
         [ css
@@ -1524,99 +1502,14 @@ renderCanvasActionsPanel currentTool =
             "Select colors, shortcut: ctrl w"
             (currentTool == SelectColorTool)
             [ Html.Styled.Attributes.fromUnstyled <| Html.Events.Extra.Pointer.onDown (\_ -> HandleToolBarClick SelectColorTool) ]
-        , hr [ css [ width (px <| (24 * 2) - 2) ] ] []
-        , div []
-            [ button
-                [ css
-                    [ fontSize (px 8)
-                    , width (px 64)
-                    , backgroundColor (rgb 150 150 150)
-                    , border3 (px 4) outset (rgb 150 150 150)
-                    , hover [ border3 (px 4) outset (rgb 250 250 250) ]
-                    , cursor pointer
-                    , active
-                        [ border3 (px 4) inset (rgb 250 250 250)
-                        ]
-                    , padding (px 0)
-                    ]
-                , Html.Styled.Events.onClick SaveClick
-                ]
-                [ text "save" ]
-            ]
-        , div []
-            [ button
-                [ css
-                    [ fontSize (px 8)
-                    , width (px 64)
-                    , backgroundColor (rgb 150 150 150)
-                    , border3 (px 4) outset (rgb 150 150 150)
-                    , hover [ border3 (px 4) outset (rgb 250 250 250) ]
-                    , cursor pointer
-                    , active
-                        [ border3 (px 4) inset (rgb 250 250 250)
-                        ]
-                    , padding (px 0)
-                    ]
-                , Html.Styled.Events.onClick SaveJsonClick
-                ]
-                [ text "sv json" ]
-            ]
-        , div []
-            [ button
-                [ css
-                    [ fontSize (px 8)
-                    , width (px 64)
-                    , backgroundColor (rgb 150 150 150)
-                    , border3 (px 4) outset (rgb 150 150 150)
-                    , hover [ border3 (px 4) outset (rgb 250 250 250) ]
-                    , cursor pointer
-                    , active
-                        [ border3 (px 4) inset (rgb 250 250 250)
-                        ]
-                    , padding (px 0)
-                    ]
-                , title "Export font ap to CSharp  file"
-                , Html.Styled.Events.onClick ExportFontMapToCsharp
-                ]
-                [ text "fnt .cs" ]
-            ]
-        , div []
-            [ button
-                [ css
-                    [ fontSize (px 8)
-                    , width (px 64)
-                    , backgroundColor (rgb 150 150 150)
-                    , border3 (px 4) outset (rgb 150 150 150)
-                    , hover [ border3 (px 4) outset (rgb 250 250 250) ]
-                    , cursor pointer
-                    , active
-                        [ border3 (px 4) inset (rgb 250 250 250)
-                        ]
-                    , padding (px 0)
-                    ]
-                , title "Export fontmap to C header file"
-                , Html.Styled.Events.onClick ExportFontMapToCHeader
-                ]
-                [ text "fnt .h" ]
-            ]
-        , div []
-            [ button
-                [ css
-                    [ fontSize (px 8)
-                    , width (px 64)
-                    , backgroundColor (rgb 150 150 150)
-                    , border3 (px 4) outset (rgb 150 150 150)
-                    , hover [ border3 (px 4) outset (rgb 250 250 250) ]
-                    , cursor pointer
-                    , active
-                        [ border3 (px 4) inset (rgb 250 250 250)
-                        ]
-                    , padding (px 0)
-                    ]
-                , Html.Styled.Events.onClick LoadClick
-                ]
-                [ text "load" ]
-            ]
+        , hr [ css [ width (px <| (32 * 2) - 2) ] ] []
+        , actionButton [ css [ width (pct 50) ], title "clear canvas" ] "CLR" ClearCanvasButtonClick
+        , hr [ css [ width (px <| (32 * 2) - 2) ] ] []
+        , actionButton [] "save" SaveClick
+        , actionButton [] "sv json" SaveJsonClick
+        , actionButton [] "fnt .cs" ExportFontMapToCsharp
+        , actionButton [] "fnt .h" ExportFontMapToCHeader
+        , actionButton [] "load" LoadClick
         ]
 
 
@@ -1849,16 +1742,6 @@ cursorCssAnimation =
                 ]
             )
         ]
-
-
-base64Encode : Bytes -> String
-base64Encode bytes =
-    Base64.Encode.encode (Base64.Encode.bytes bytes)
-
-
-base64Decode : String -> Result Base64.Decode.Error String
-base64Decode string =
-    Base64.Decode.decode Base64.Decode.string string
 
 
 paintSelectToolCursorDataImage =
