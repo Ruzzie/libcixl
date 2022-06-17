@@ -43,14 +43,10 @@ module Main exposing (..)
 -}
 
 import Array exposing (Array)
-import Base64.Decode
-import Base64.Encode
 import Bitwise
 import Browser
 import Browser.Dom as Dom
 import Browser.Events
-import Bytes exposing (Bytes)
-import Bytes.Encode
 import Css exposing (..)
 import Css.Animations exposing (keyframes)
 import Dict exposing (Dict)
@@ -76,7 +72,6 @@ import Serialize as S
 import Svg.Styled as Svg
 import Svg.Styled.Attributes as SvgAttr
 import Svg.Styled.Events
-import Svg.Styled.Keyed
 import Svg.Styled.Lazy
 import Task
 
@@ -86,25 +81,25 @@ defaultInitialStatAsCompressedString =
 
 
 lineToCixlBufferEntries : Int -> Int -> Int -> String -> List ( Int, Cixl )
-lineToCixlBufferEntries gridWidth xIndent y line =
+lineToCixlBufferEntries gridWidth xIndent y lineString =
     List.indexedMap
-        (\x char ->
-            ( xAndYToIndex gridWidth { x = xIndent + x, y = y }
+        (\idx char ->
+            ( xAndYToIndex gridWidth { x = xIndent + idx, y = y }
             , { glyph = char, fgColorIndex = 1, bgColorIndex = 0 }
             )
         )
-        (String.toList line)
+        (String.toList lineString)
 
 
-textToCixlBuffer : { a | x : Int, y : Int } -> Int -> String -> CanvasCixlBuffer
-textToCixlBuffer offset gridWidth text =
+textToCixlBuffer : Int -> Int -> Int -> String -> CanvasCixlBuffer
+textToCixlBuffer indent yStart gridWidth text =
     Dict.fromList <|
         Tuple.second
             (List.foldl
                 (\line ( currY, dictEntries ) ->
-                    ( currY + 1, lineToCixlBufferEntries gridWidth offset.x currY line ++ dictEntries )
+                    ( currY + 1, lineToCixlBufferEntries gridWidth indent currY line ++ dictEntries )
                 )
-                ( offset.y, [] )
+                ( yStart, [] )
                 (String.lines text)
             )
 
@@ -179,21 +174,6 @@ defaultPalettes =
     { fg = fgPalette, bg = bgPalette }
 
 
-
-{- type alias CanvasCixlBuffer =
-   { widthInCixls : Int
-   , heightInCixls : Int
-   , fontMap : FontMap
-   , fgPalette : ColorPalette
-   , bgPalette : ColorPalette
-   , cixlBuffer : Array Cixl
-   }
--}
--- TODO:
---  we want to load and save the font-map
---     and the Canvas
-
-
 bitIsSet : Int -> Int -> Bit
 bitIsSet bit value =
     if Bitwise.and bit value == bit then
@@ -253,6 +233,12 @@ bytesToGlyphBitmap bytes =
     }
 
 
+{-|
+
+    you can 'loop' through a list in chunks
+    calls 'mapChunk' with a part of the given 'list' with a list of size 'chunkSize'
+
+-}
 chunkConcat : (List a -> b) -> Int -> List a -> List b
 chunkConcat mapChunk chunkSize list =
     let
@@ -275,28 +261,24 @@ fromPixelFontDefinition bytes =
     chunkConcat bytesToGlyphBitmap 8 bytes
 
 
-
-{- let
-       -- separate the whole list, to lists of 8, since 8 bytes is exactly one glyph (8x8 px)
-       step remaining newListOfList =
-           case remaining of
-               [] ->
-                   newListOfList
-
-               _ ->
-                   -- per glyph (which is defined in 8 bytes) build a list the bitmap
-                   step (List.drop 8 remaining) (newListOfList ++ [ bytesToGlyphBitmap (List.take 8 remaining) ])
-   in
-   -- a list of 256 (8x8 font bitmap)
-   step bytes []
--}
-
-
 fontMapToCommaSeparatedHexString fontMap =
     let
         glyph : Array Bit -> List String
         glyph glyphBitmap =
-            chunkConcat (\chunk -> String.padRight 4 ' ' ("0x" ++ String.toUpper (Hex.toString <| bitsToByte (Array.fromList chunk))) ++ ", ") 8 (Array.toList glyphBitmap)
+            chunkConcat
+                (\byteChunk ->
+                    String.padRight 4
+                        ' '
+                        ("0x"
+                            ++ String.toUpper
+                                (String.padLeft 2 '0' <|
+                                    (Hex.toString <| bitsToByte (Array.fromList byteChunk))
+                                )
+                        )
+                        ++ ", "
+                )
+                8
+                (Array.toList glyphBitmap)
     in
     String.concat
         (List.concatMap (\( idx, g ) -> glyph g.bitmap ++ [ " // char ", String.fromInt idx, "\n" ]) (Array.toIndexedList fontMap))
@@ -377,11 +359,6 @@ glyphBitmapCodec =
 fontMapCodec : S.Codec e FontMap
 fontMapCodec =
     S.array glyphBitmapCodec
-
-
-
--- Canvas
--- ColorPalette
 
 
 colorDefinitionCodec : S.Codec e ColorDefinition
@@ -466,8 +443,8 @@ saveToCompressedString mainModel =
         )
 
 
-loadFromCompressedString : MainModel -> String -> MainModel
-loadFromCompressedString modelToUpdate compressedString =
+updateMainModelFromCompressedString : MainModel -> String -> MainModel
+updateMainModelFromCompressedString modelToUpdate compressedString =
     -- decode the bytes from the string (these are still compressed)
     -- for now we ignore all errors
     case S.decodeFromString S.bytes compressedString of
@@ -517,10 +494,6 @@ toRgbString color =
     "rgb( " ++ String.fromInt color.red ++ ", " ++ String.fromInt color.green ++ ", " ++ String.fromInt color.blue ++ " )"
 
 
-
--- drawRawGlyph : Array { a | bitmap : Array Bit } -> ColorPalettes -> Cixl -> Int -> { d | x : Float, y : Float } -> Svg.Svg msg
-
-
 drawRawGlyphFromBitmap : List (Svg.Attribute msg) -> ColorPalettes -> Cixl -> Int -> Vector2.Vector2 -> (Int -> List (Svg.Attribute msg)) -> GlyphBitmap -> Svg.Svg msg
 drawRawGlyphFromBitmap attrs colorPalettes cixl scaleFactor absScreenPoint extrasPerPixel bitmap =
     let
@@ -551,10 +524,7 @@ drawRawGlyphFromBitmap attrs colorPalettes cixl scaleFactor absScreenPoint extra
                                     , height = toFloat <| 1 * scaleFactor
                                     }
                                 )
-                                ([ SvgAttr.fill <| toRgbString fgColor
-                                 ]
-                                    ++ extrasPerPixel idx
-                                )
+                                ((SvgAttr.fill <| toRgbString fgColor) :: extrasPerPixel idx)
 
                         Zero ->
                             toSvgRect
@@ -563,7 +533,7 @@ drawRawGlyphFromBitmap attrs colorPalettes cixl scaleFactor absScreenPoint extra
                                     , height = toFloat <| 1 * scaleFactor
                                     }
                                 )
-                                ([ SvgAttr.fill <| toRgbString bgColor ] ++ extrasPerPixel idx)
+                                ((SvgAttr.fill <| toRgbString bgColor) :: extrasPerPixel idx)
                 )
                 bitmap.bitmap
 
@@ -571,7 +541,14 @@ drawRawGlyphFromBitmap attrs colorPalettes cixl scaleFactor absScreenPoint extra
 drawRawGlyph attrs fontMap colorPalettes cixl scaleFactor absScreenPoint extrasPerPixel =
     case Array.get (Char.toCode cixl.glyph) fontMap of
         Just glyphBitmap ->
-            drawRawGlyphFromBitmap attrs colorPalettes cixl scaleFactor absScreenPoint extrasPerPixel glyphBitmap
+            drawRawGlyphFromBitmap
+                attrs
+                colorPalettes
+                cixl
+                scaleFactor
+                absScreenPoint
+                extrasPerPixel
+                glyphBitmap
 
         Nothing ->
             Svg.g [] []
@@ -699,14 +676,14 @@ main =
 
 initialModel : MainModel
 initialModel =
-    loadFromCompressedString
+    updateMainModelFromCompressedString
         { fontMap = defaultFontMap
         , fontMapGridScale = 3
         , editorMode = CanvasMode
         , canvasModel =
             { cursor = { position = { x = 0, y = 0 } }
             , gridSizeInTiles = { width = 40, height = 30 }
-            , cixlBuffer = textToCixlBuffer { x = 17, y = 13 } 40 ""
+            , cixlBuffer = Dict.empty
             , scaleFactor = 4
             , currentCanvasTool = TypingTool
             }
@@ -1016,7 +993,7 @@ update updateMsg model =
             ( model, Task.perform CxlLoadFromString (File.toString file) )
 
         CxlLoadFromString compressedString ->
-            ( loadFromCompressedString model compressedString, Cmd.none )
+            ( updateMainModelFromCompressedString model compressedString, Cmd.none )
 
         ExportFontMapToCsharp ->
             ( model, File.Download.string "Font.cs" "text/plain" (fontMapToCSharp model.fontMap) )
@@ -1307,7 +1284,7 @@ view mainModel =
                     mainModel.fontMapGridScale
                     (Char.toCode mainModel.glyphToShowInEditor)
                     mainModel.glyphShortcutsStartIdx
-                , lazy5 renderSelectedGlyphEditor mainModel.fontMap mainModel.currentPalettes mainModel.selectedFgIdx mainModel.selectedBgIdx mainModel.glyphToShowInEditor
+                , renderSelectedGlyphEditor mainModel.fontMap mainModel.currentPalettes mainModel.selectedFgIdx mainModel.selectedBgIdx mainModel.glyphToShowInEditor
                 , renderStatusBar mainModel.canvasModel.gridSizeInTiles mainModel.canvasModel.cursor.position (Char.toCode mainModel.glyphToShowInEditor) mainModel.editorMode mainModel.canvasModel.currentCanvasTool
                 ]
             ]
@@ -1551,7 +1528,7 @@ drawSystemGlyphIcon sizeInPx charCode =
         , SvgAttr.height <| String.fromFloat <| sizeInPx
         , SvgAttr.viewBox "0 0 8 8" -- zoom with viewport
         ]
-        [ drawRawGlyph [] fantasyFontMap defaultPalettes { glyph = Char.fromCode charCode, fgColorIndex = 15, bgColorIndex = 2 } 1 { x = 0, y = 0 } (\_ -> [])
+        [ drawRawGlyph [] fantasyFontMap defaultPalettes { glyph = Char.fromCode charCode, fgColorIndex = 15, bgColorIndex = 2 } 1 Vector2.zeroVector (\_ -> [])
         ]
 
 
@@ -1780,10 +1757,6 @@ renderCanvas fontMap colorPalettes canvasModel =
                 -- eventually we want to have a todataurl of a cixl, where the svg is serialized, that we can use as cursor
                 SelectColorTool ->
                     hover [ property "cursor" ("url(" ++ paintSelectToolCursorDataImage ++ ") 0 32, copy") ]
-
-            {- Nothing ->
-               hover [ cursor default ]
-            -}
             ]
         , Html.Styled.Attributes.fromUnstyled
             (Html.Events.Extra.Pointer.onDown (\event -> HandlePointerDownOnCanvas event.pointer.offsetPos))
@@ -1851,7 +1824,7 @@ renderCanvas fontMap colorPalettes canvasModel =
 renderCanvasTextBuffer fontMap colorPalettes gridWidthInTiles cixlBuffer =
     Dict.foldr
         (\fontMapIdx cixl acc ->
-            -- Svg.Styled.Lazy.lazy5
+            -- lazy rendering is slower
             renderCanvasCixl cixl fontMapIdx fontMap colorPalettes gridWidthInTiles
                 :: acc
         )
@@ -1860,19 +1833,25 @@ renderCanvasTextBuffer fontMap colorPalettes gridWidthInTiles cixlBuffer =
 
 
 renderCanvasCixl cixl fontMapIdx fontMap colorPalettes gridWidthInTiles =
-    Svg.Styled.Keyed.node "g" [] [ ( "canvas-" ++ String.fromInt fontMapIdx, drawRawGlyph [] fontMap colorPalettes cixl 1 (tileToScreen (indexToXandY gridWidthInTiles fontMapIdx)) (\_ -> []) ) ]
+    Svg.g []
+        -- Svg.Styled.Keyed.node "g" | doesnt seem to make much of a difference
+        --[]
+        [ --( "canvas-" ++ String.fromInt fontMapIdx
+          --,
+          drawRawGlyph [] fontMap colorPalettes cixl 1 (tileToScreen (indexToXandY gridWidthInTiles fontMapIdx)) (\_ -> [])
+
+        --)
+        ]
 
 
 tileToScreen tileCoord =
     Vector2.scale glyphSizeInPx (toVector2 tileCoord)
 
 
-fontMapCharCodes =
+{-| a list from 0 to 255
+-}
+asciiCharCodes =
     List.range 0 255
-
-
-
--- renderFontMap : FontMap -> Int -> Html UpdateMsg
 
 
 renderFontMap fontMap fontMapGridScale selectedChar shortCutsSelectedStartIdx =
@@ -1898,17 +1877,12 @@ renderFontMap fontMap fontMapGridScale selectedChar shortCutsSelectedStartIdx =
     <|
         -- todo legend
         List.map
-            (renderFontGlyphAsSvg fontMap scaleFactor selectedChar shortCutsSelectedStartIdx)
-            fontMapCharCodes
+            (renderFontMapGlyphAsSvg fontMap scaleFactor selectedChar shortCutsSelectedStartIdx)
+            asciiCharCodes
 
 
-
-{- renderKeyedFontGlyphAsSvg fontMap scaleFactor selectedChar charIdx =
-   ( "fm-" ++ String.fromInt charIdx, lazy4 renderFontGlyphAsSvg fontMap scaleFactor selectedChar charIdx )
--}
-
-
-renderFontGlyphAsSvg fontMap scaleFactor selectedChar shortCutsSelectedStartIdx charIdx =
+renderFontMapGlyphAsSvg : Array GlyphBitmap -> Float -> Int -> Int -> Int -> Html UpdateMsg
+renderFontMapGlyphAsSvg fontMap scaleFactor selectedChar shortCutsSelectedStartIdx charIdx =
     Svg.svg
         [ -- The size on the screen
           SvgAttr.width <| String.fromFloat <| glyphSizeInPx * scaleFactor
