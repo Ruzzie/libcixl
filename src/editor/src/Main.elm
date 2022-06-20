@@ -43,14 +43,15 @@ module Main exposing (..)
 -}
 
 import Array exposing (Array)
-import Bitwise
 import Browser
 import Browser.Dom as Dom
 import Browser.Events
+import Cixl exposing (..)
 import Css exposing (..)
 import Css.Animations exposing (keyframes)
 import Dict exposing (Dict)
 import Events
+import Exports exposing (..)
 import File exposing (File)
 import File.Download
 import File.Select
@@ -66,7 +67,7 @@ import Html.Styled.Lazy exposing (lazy3, lazy4, lazy5)
 import Json.Decode as Decode
 import Json.Encode
 import Keyboard.Event exposing (KeyboardEvent)
-import Keyboard.Key exposing (Key(..))
+import Keyboard.Key as Key
 import PixelFonts
 import Serialize as S
 import Svg.Styled as Svg
@@ -104,43 +105,8 @@ textToCixlBuffer indent yStart gridWidth text =
             )
 
 
-type Bit
-    = Zero
-    | One
-
-
-not bit =
-    if bit == Zero then
-        One
-
-    else
-        Zero
-
-
-type alias GlyphBitmap =
-    { -- stores the bits in a flat array
-      bitmap : Array Bit
-    }
-
-
-type alias FontMap =
-    Array GlyphBitmap
-
-
-type alias ColorDefinition =
-    { red : Int, green : Int, blue : Int }
-
-
 fromCss cssColor =
     ColorDefinition (.red cssColor) (.green cssColor) (.blue cssColor)
-
-
-type alias ColorPalette =
-    Array ColorDefinition
-
-
-type alias Cixl =
-    { glyph : Char, fgColorIndex : Int, bgColorIndex : Int }
 
 
 bgPalette : ColorPalette
@@ -174,161 +140,18 @@ defaultPalettes =
     { fg = fgPalette, bg = bgPalette }
 
 
-bitIsSet : Int -> Int -> Bit
-bitIsSet bit value =
-    if Bitwise.and bit value == bit then
-        One
-
-    else
-        Zero
-
-
-byteToBits : Int -> List Bit
-byteToBits byte =
-    -- msb ------ lsb
-    [ bitIsSet 128 byte
-    , bitIsSet 64 byte
-    , bitIsSet 32 byte
-    , bitIsSet 16 byte
-    , bitIsSet 8 byte
-    , bitIsSet 4 byte
-    , bitIsSet 2 byte
-    , bitIsSet 1 byte
-    ]
-
-
-bitToInt bit =
-    case bit of
-        Zero ->
-            0
-
-        One ->
-            1
-
-
-bitsToByte : Array Bit -> Int
-bitsToByte arrayOf8Bits =
-    let
-        indexedList =
-            Array.toIndexedList arrayOf8Bits
-    in
-    List.foldl
-        (\( idx, bitValue ) total ->
-            Bitwise.or total <|
-                -- this is the idx'th bit so shift
-                Bitwise.shiftLeftBy (7 - idx)
-                    -- 0 or 1
-                    (bitToInt bitValue)
-        )
-        0
-        indexedList
-
-
-{-| to a 64 element list of Bits
-this represents 8x8 pixels
--}
-bytesToGlyphBitmap : List Int -> GlyphBitmap
-bytesToGlyphBitmap bytes =
-    { bitmap = Array.fromList <| List.concatMap (\byte -> byteToBits byte) bytes
-    }
-
-
-{-|
-
-    you can 'loop' through a list in chunks
-    calls 'mapChunk' with a part of the given 'list' with a list of size 'chunkSize'
-
--}
-chunkConcat : (List a -> b) -> Int -> List a -> List b
-chunkConcat mapChunk chunkSize list =
-    let
-        -- separate the whole list, to lists of size chunkSize
-        step remaining newListOfList =
-            case remaining of
-                [] ->
-                    newListOfList
-
-                _ ->
-                    -- per chunk call mapChunk
-                    step (List.drop chunkSize remaining) (newListOfList ++ [ mapChunk (List.take chunkSize remaining) ])
-    in
-    -- a list of 256 (8x8 font bitmap)
-    step list []
-
-
-fromPixelFontDefinition : List Int -> List GlyphBitmap
-fromPixelFontDefinition bytes =
+loadFromPixelFontDefinition : List Int -> List GlyphBitmap
+loadFromPixelFontDefinition bytes =
     chunkConcat bytesToGlyphBitmap 8 bytes
-
-
-fontMapToCommaSeparatedHexString fontMap =
-    let
-        glyph : Array Bit -> List String
-        glyph glyphBitmap =
-            chunkConcat
-                (\byteChunk ->
-                    String.padRight 4
-                        ' '
-                        ("0x"
-                            ++ String.toUpper
-                                (String.padLeft 2 '0' <|
-                                    (Hex.toString <| bitsToByte (Array.fromList byteChunk))
-                                )
-                        )
-                        ++ ", "
-                )
-                8
-                (Array.toList glyphBitmap)
-    in
-    String.concat
-        (List.concatMap (\( idx, g ) -> glyph g.bitmap ++ [ " // char ", String.fromInt idx, "\n" ]) (Array.toIndexedList fontMap))
-
-
-fontMapToCHeader : FontMap -> String
-fontMapToCHeader fontMap =
-    """
-// ·————·
-// |CIXL|
-// ·————·
-//  Font
-        
-unsigned char font[2048] =
-{
-
-        """
-        ++ fontMapToCommaSeparatedHexString fontMap
-        ++ "};"
-
-
-fontMapToCSharp : FontMap -> String
-fontMapToCSharp fontMap =
-    """
-namespace Cixl;
-// ·————·
-// |CIXL|
-// ·————·
-//  Font
-        
-public static class Fonts
-{
-    static readonly byte[] font =
-    {
-
-        """
-        ++ fontMapToCommaSeparatedHexString fontMap
-        ++ """
-    };
-}    
-    """
 
 
 defaultFontMap : FontMap
 defaultFontMap =
-    Array.fromList <| fromPixelFontDefinition PixelFonts.tinyType
+    Array.fromList <| loadFromPixelFontDefinition PixelFonts.tinyType
 
 
 fantasyFontMap =
-    Array.fromList <| fromPixelFontDefinition PixelFonts.fantasyType
+    Array.fromList <| loadFromPixelFontDefinition PixelFonts.fantasyType
 
 
 
@@ -340,7 +163,7 @@ bitmapArrayCodec =
     let
         list : Array Bit -> List Int
         list c =
-            chunkConcat (\chunk -> bitsToByte (Array.fromList chunk)) 8 (Array.toList c)
+            chunkConcat (\chunk -> bitsArrayToByte (Array.fromList chunk)) 8 (Array.toList c)
     in
     S.array
         S.byte
@@ -471,7 +294,7 @@ updateMainModelFromCompressedString modelToUpdate compressedString =
             modelToUpdate
 
 
-type alias TileCoordinate =
+type alias CellPos =
     { x : Int, y : Int }
 
 
@@ -567,18 +390,16 @@ xAndYToIndex rowWidth value =
 
 
 
--- { x = modBy rowWidth idx, y = idx // rowWidth }
 --- GENERAL SVG RENDER FUNCTIONS
 
 
 toSvgRect forRectangle attributes =
     Svg.rect
-        ([ SvgAttr.x (String.fromFloat forRectangle.x)
-         , SvgAttr.y (String.fromFloat forRectangle.y)
-         , SvgAttr.width (String.fromFloat forRectangle.width)
-         , SvgAttr.height (String.fromFloat forRectangle.height)
-         ]
-            ++ attributes
+        (SvgAttr.x (String.fromFloat forRectangle.x)
+            :: SvgAttr.y (String.fromFloat forRectangle.y)
+            :: SvgAttr.width (String.fromFloat forRectangle.width)
+            :: SvgAttr.height (String.fromFloat forRectangle.height)
+            :: attributes
         )
         []
 
@@ -587,8 +408,15 @@ toSvgRect forRectangle attributes =
 --- APP SHIZZLE
 
 
-type alias ColorPalettes =
-    { fg : ColorPalette, bg : ColorPalette }
+type ExportLanguage
+    = NoLanguage
+    | CSharp
+    | C
+
+
+type alias ExportModel =
+    { lang : ExportLanguage
+    }
 
 
 type alias MainModel =
@@ -602,6 +430,7 @@ type alias MainModel =
     , currentPalettes : ColorPalettes
     , -- the startIdx  in the fontmap from where to start to show 16 shortcuts
       glyphShortcutsStartIdx : Int
+    , exportModel : ExportModel
     }
 
 
@@ -622,26 +451,23 @@ type UpdateMsg
     | FontMapGlyphClicked Int
     | PaletteColorPickerClicked ( PaletteType, String )
     | ClearCanvasButtonClick
-    | SaveClick
-    | SaveJsonClick
-    | LoadClick
+    | SaveEditorStateClick
+    | LoadEditorStateClick
     | CxlFileSelected File
     | CxlLoadFromString String
-    | ExportFontMapToCsharp
-    | ExportFontMapToCHeader
+    | ExportModeClicked
+    | CanvasModeClicked
+    | ExportLanguageClicked ExportLanguage
+    | DownloadExportClicked
 
 
 type alias Cursor =
-    { position : TileCoordinate
+    { position : CellPos
     }
 
 
 type alias GridSize =
     { width : Int, height : Int }
-
-
-type alias CanvasCixlBuffer =
-    Dict Int Cixl
 
 
 type alias CanvasModel =
@@ -657,6 +483,7 @@ type EditorMode
     = CanvasMode
     | FontMapSelectorMode
     | GlyphEditorMode
+    | ExportAsCodeMode
 
 
 type ActiveTool
@@ -692,6 +519,7 @@ initialModel =
         , selectedBgIdx = 0
         , currentPalettes = defaultPalettes
         , glyphShortcutsStartIdx = 0
+        , exportModel = { lang = NoLanguage }
         }
         defaultInitialStatAsCompressedString
 
@@ -704,14 +532,14 @@ type NavigationAction
     | MoveToStartOfRow
     | MoveToEndOfRow
     | MoveToStartOfNextLine
-    | MoveToPosition TileCoordinate
+    | MoveToPosition CellPos
 
 
 type CanvasMessage
     = None
     | MoveCanvasCursor NavigationAction
-    | PaintTile TileCoordinate
-    | SelectTileColors TileCoordinate
+    | PaintTile CellPos
+    | SelectTileColors CellPos
     | TypeAction Char
     | Backspace -- dunno a better name
     | NextGlyphShorCutsRow
@@ -719,6 +547,10 @@ type CanvasMessage
     | PlaceGlyphFromShortCutIndex Int
     | Delete
     | ClearCanvas
+
+
+type ExportMessage
+    = ShowCodeForLanguage ExportLanguage
 
 
 type GlyphEditorMessage
@@ -733,6 +565,7 @@ type EditorModeAction
     = CanvasAction CanvasMessage
     | GlyphEditorAction GlyphEditorMessage
     | ColorPalettesAction ColorPalettesMessage
+    | ExportAction ExportMessage
     | Noop
 
 
@@ -876,7 +709,7 @@ update updateMsg model =
 
         -- ( model, Cmd.none )
         HandleKeyboardEvent keyboardEvent ->
-            if keyboardEvent.ctrlKey == False && keyboardEvent.altKey == False && keyboardEvent.keyCode /= Tab then
+            if keyboardEvent.ctrlKey == False && keyboardEvent.altKey == False && keyboardEvent.keyCode /= Key.Tab then
                 ( model, Cmd.none )
                 {- case keyboardEvent.key of
                    Just key ->
@@ -927,6 +760,9 @@ update updateMsg model =
                 GlyphEditorMode ->
                     ( model, Cmd.none )
 
+                ExportAsCodeMode ->
+                    ( model, Cmd.none )
+
         UpdateSelectedFgColorIdx fgColorIdx ->
             let
                 newIdx =
@@ -969,6 +805,9 @@ update updateMsg model =
                 GlyphEditorMode ->
                     ( model, Cmd.none )
 
+                ExportAsCodeMode ->
+                    ( model, Cmd.none )
+
         PaletteColorPickerClicked ( paletteType, hexColorString ) ->
             let
                 color =
@@ -980,13 +819,13 @@ update updateMsg model =
         ClearCanvasButtonClick ->
             handleAction (CanvasAction ClearCanvas) model
 
-        SaveClick ->
+        SaveEditorStateClick ->
             ( model, File.Download.string "cixlEditor.cxl" "text/cxl" (saveToCompressedString model) )
 
-        SaveJsonClick ->
-            ( model, File.Download.string "cixlEditor.json" "application/json" (saveDataToJsonString model) )
-
-        LoadClick ->
+        {- SaveJsonClick ->
+           ( model, File.Download.string "cixlEditor.json" "application/json" (saveDataToJsonString model) )
+        -}
+        LoadEditorStateClick ->
             ( model, File.Select.file [ "text/cxl", "cxl" ] CxlFileSelected )
 
         CxlFileSelected file ->
@@ -995,11 +834,25 @@ update updateMsg model =
         CxlLoadFromString compressedString ->
             ( updateMainModelFromCompressedString model compressedString, Cmd.none )
 
-        ExportFontMapToCsharp ->
-            ( model, File.Download.string "Font.cs" "text/plain" (fontMapToCSharp model.fontMap) )
+        ExportModeClicked ->
+            ( { model | editorMode = ExportAsCodeMode }, Cmd.none )
 
-        ExportFontMapToCHeader ->
-            ( model, File.Download.string "font.h" "text/plain" (fontMapToCHeader model.fontMap) )
+        CanvasModeClicked ->
+            ( { model | editorMode = CanvasMode }, Cmd.none )
+
+        ExportLanguageClicked exportLanguage ->
+            handleAction (ExportAction (ShowCodeForLanguage exportLanguage)) model
+
+        DownloadExportClicked ->
+            case model.exportModel.lang of
+                NoLanguage ->
+                    ( model, Cmd.none )
+
+                CSharp ->
+                    ( model, File.Download.string "CixlData.cs" "text/plain" (exportToCSharp model.fontMap model.currentPalettes) )
+
+                C ->
+                    ( model, File.Download.string "cixl-data.h" "text/plain" (exportToC model.fontMap model.currentPalettes) )
 
 
 handleAction : EditorModeAction -> MainModel -> ( MainModel, Cmd UpdateMsg )
@@ -1151,7 +1004,7 @@ handleAction editorAction model =
                             -- toggle the bit and update the array
                             let
                                 updatedGlyphBitmap =
-                                    Array.set bitIndex (not (Maybe.withDefault Zero (Array.get bitIndex glyph.bitmap))) glyph.bitmap
+                                    Array.set bitIndex (bitNot (Maybe.withDefault Zero (Array.get bitIndex glyph.bitmap))) glyph.bitmap
 
                                 updatedFontMap =
                                     Array.set
@@ -1182,8 +1035,17 @@ handleAction editorAction model =
                     in
                     ( { model | currentPalettes = updatedPalettes }, Cmd.none )
 
+        ExportAction exportMessage ->
+            case exportMessage of
+                ShowCodeForLanguage language ->
+                    let
+                        exportModel =
+                            model.exportModel
+                    in
+                    ( { model | exportModel = { exportModel | lang = language } }, Cmd.none )
 
-paintTile : CanvasCixlBuffer -> Int -> TileCoordinate -> Int -> Int -> CanvasCixlBuffer
+
+paintTile : CanvasCixlBuffer -> Int -> CellPos -> Int -> Int -> CanvasCixlBuffer
 paintTile cixlBuffer tileGridWidth tileCoordinate selectedFgIdx selectedBgIdx =
     let
         paintWhenPresent maybeCixl =
@@ -1262,13 +1124,38 @@ view mainModel =
                         font-weight: bold;
                         height: 24px;
                        }
+
+                       body, pre, p, span {font-family: 'Web IBM CGAthin';}
                        
                        """
             ]
         , div [ css [ displayFlex, defaultTextStyle ] ]
             [ lazy3 renderColorPalettes mainModel.currentPalettes mainModel.selectedFgIdx mainModel.selectedBgIdx
-            , renderCanvasActionsPanel mainModel.canvasModel.currentCanvasTool
-            , lazy3 renderCanvas mainModel.fontMap mainModel.currentPalettes mainModel.canvasModel
+            , renderActionsPanel mainModel.editorMode mainModel.canvasModel.currentCanvasTool
+            , case mainModel.editorMode of
+                ExportAsCodeMode ->
+                    div
+                        [ css
+                            [ width (px <| toFloat (mainModel.canvasModel.gridSizeInTiles.width * glyphSizeInPx * mainModel.canvasModel.scaleFactor))
+                            , height (px <| toFloat (mainModel.canvasModel.gridSizeInTiles.height * glyphSizeInPx * mainModel.canvasModel.scaleFactor))
+                            , overflow auto
+                            ]
+                        ]
+                        [ Html.pre [ css [ margin (px 0), backgroundColor (hex "#FEFEFE") ] ]
+                            (case mainModel.exportModel.lang of
+                                NoLanguage ->
+                                    [ text "\n\n\n <-- [SELECT LANGUAGE]" ]
+
+                                CSharp ->
+                                    [ text (exportToCSharpUnsafe mainModel.fontMap mainModel.currentPalettes) ]
+
+                                C ->
+                                    [ text (exportToC mainModel.fontMap mainModel.currentPalettes) ]
+                            )
+                        ]
+
+                _ ->
+                    lazy3 renderCanvas mainModel.fontMap mainModel.currentPalettes mainModel.canvasModel
             , lazy5 renderShortcutsGlyphSelector
                 mainModel.fontMap
                 mainModel.currentPalettes
@@ -1295,13 +1182,16 @@ editorModeToString : EditorMode -> String
 editorModeToString editorMode =
     case editorMode of
         CanvasMode ->
-            "edit mode"
+            "edit mode  "
 
         FontMapSelectorMode ->
             "select font"
 
         GlyphEditorMode ->
             "glyph edit"
+
+        ExportAsCodeMode ->
+            "export   "
 
 
 activeToolToString : ActiveTool -> String
@@ -1456,7 +1346,12 @@ actionButton attrs label clickMsg =
         ]
 
 
-renderCanvasActionsPanel currentTool =
+renderActionsPanel : EditorMode -> ActiveTool -> Html UpdateMsg
+renderActionsPanel editorMode currentTool =
+    let
+        hrSeparator =
+            hr [ css [ width (px <| (32 * 2) - 2) ] ] []
+    in
     div
         [ css
             [ backgroundColor (rgb 50 50 50)
@@ -1467,27 +1362,44 @@ renderCanvasActionsPanel currentTool =
             , borderLeft3 (px 2) inset (rgb 5 5 5)
             ]
         ]
-        [ drawSystemGlyphIconButton 84
-            "Edit mode, shortcut: ctrl q"
-            (currentTool == TypingTool)
-            [ Html.Styled.Attributes.fromUnstyled <| Html.Events.Extra.Pointer.onDown (\_ -> HandleToolBarClick TypingTool) ]
-        , drawSystemGlyphIconButton 15
-            "Paint mode, shortcut: ctrl b"
-            (currentTool == PaintingTool)
-            [ Html.Styled.Attributes.fromUnstyled <| Html.Events.Extra.Pointer.onDown (\_ -> HandleToolBarClick PaintingTool) ]
-        , drawSystemGlyphIconButton 7
-            "Select colors, shortcut: ctrl w"
-            (currentTool == SelectColorTool)
-            [ Html.Styled.Attributes.fromUnstyled <| Html.Events.Extra.Pointer.onDown (\_ -> HandleToolBarClick SelectColorTool) ]
-        , hr [ css [ width (px <| (32 * 2) - 2) ] ] []
-        , actionButton [ css [ width (pct 50) ], title "clear canvas" ] "CLR" ClearCanvasButtonClick
-        , hr [ css [ width (px <| (32 * 2) - 2) ] ] []
-        , actionButton [] "save" SaveClick
-        , actionButton [] "sv json" SaveJsonClick
-        , actionButton [] "fnt .cs" ExportFontMapToCsharp
-        , actionButton [] "fnt .h" ExportFontMapToCHeader
-        , actionButton [] "load" LoadClick
-        ]
+    <|
+        case editorMode of
+            CanvasMode ->
+                [ drawSystemGlyphIconButton 84
+                    "Edit mode, shortcut: ctrl q"
+                    (currentTool == TypingTool)
+                    [ Html.Styled.Attributes.fromUnstyled <| Html.Events.Extra.Pointer.onDown (\_ -> HandleToolBarClick TypingTool) ]
+                , drawSystemGlyphIconButton 15
+                    "Paint mode, shortcut: ctrl b"
+                    (currentTool == PaintingTool)
+                    [ Html.Styled.Attributes.fromUnstyled <| Html.Events.Extra.Pointer.onDown (\_ -> HandleToolBarClick PaintingTool) ]
+                , drawSystemGlyphIconButton 7
+                    "Select colors, shortcut: ctrl w"
+                    (currentTool == SelectColorTool)
+                    [ Html.Styled.Attributes.fromUnstyled <| Html.Events.Extra.Pointer.onDown (\_ -> HandleToolBarClick SelectColorTool) ]
+                , hrSeparator
+                , actionButton [ css [ width (pct 50) ], title "clear canvas" ] "CLR" ClearCanvasButtonClick
+                , hrSeparator
+                , actionButton [] "save" SaveEditorStateClick
+                , actionButton [] "export" ExportModeClicked
+
+                {- , actionButton [] "sv json" SaveJsonClick -}
+                , actionButton [] "load" LoadEditorStateClick
+                ]
+
+            FontMapSelectorMode ->
+                []
+
+            GlyphEditorMode ->
+                []
+
+            ExportAsCodeMode ->
+                [ actionButton [ title "back to editor" ] "<<" CanvasModeClicked
+                , hrSeparator
+                , actionButton [] ".cs" (ExportLanguageClicked CSharp)
+                , actionButton [] ".h" (ExportLanguageClicked C)
+                , actionButton [] "save" DownloadExportClicked
+                ]
 
 
 drawSystemGlyphIconButton charCode hint isActive attrs =
