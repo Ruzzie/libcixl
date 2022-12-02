@@ -18,3 +18,5 @@ libcixl-dos16.lib
 src/editor/.idea/editor.iml
 src/editor/.idea/
 src/editor/elm-stuff/
+cmake-build-debug-visual-studio-2022/
+src/drawtex/elm-stuff/
